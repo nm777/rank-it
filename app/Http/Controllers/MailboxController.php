@@ -43,7 +43,11 @@ class MailboxController extends Controller
         $attachments = DB::table('mailbox_entries')->where('import_id', $batch)->orderBy('ordinal')
             ->pluck('attachments')->flatMap(fn ($names) => json_decode($names, true));
 
-        return view('import', compact('import', 'attachments'));
+        $pending = DB::table('mailbox_entries')->join('mail_passages', 'mail_passages.message_id', '=', 'mailbox_entries.message_id')
+            ->join('inference_work', 'inference_work.passage_id', '=', 'mail_passages.id')
+            ->where('import_id', $batch)->whereIn('stage', ['screen', 'embed'])->exists();
+
+        return view('import', compact('import', 'attachments', 'pending'));
     }
 
     public function passage(Request $request, int $passage)

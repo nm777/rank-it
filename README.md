@@ -35,3 +35,15 @@ docker compose exec -e APP_ENV=testing -e DB_DATABASE=rank_it_test \
 ```
 
 For native tests, create `rank_it_test` in a PostgreSQL instance with pgvector and supply matching `DB_HOST`, `DB_PORT`, `DB_USERNAME` and `DB_PASSWORD` for `php artisan test`.
+
+## Screening and embedding
+
+The worker queues direct captures for embedding and new authored mailbox passages for screening. Run `php artisan inference:resume` after migrating existing text, raising the budget or enabling a provider. Duplicate deliveries share the same durable work record.
+
+Set `INFERENCE_CAP_NANOUSD` and `INFERENCE_ANSWER_RESERVE_NANOUSD` in billionths of a US dollar. The cap defaults to zero. Each worker reserves a full request allowance under a PostgreSQL row lock and settles against reported input tokens. Answers can reserve against the full cap through the same Budget service.
+
+Supply `TYPESAFE_API_KEY` and run `php artisan inference:check-jev` before enabling screening. This sends a fixed synthetic locker example and accounts for the charge. Confirm usage against the provider account, then set `JEV_SAMPLE_VERIFIED=true`. The adapter pins Jev 1.14.0, uses a Noul probability threshold of 0.5 and reserves 65,536 input tokens at 42 billionths of a dollar per token. [API](https://docs.typesafe.ai/primitives/noul) · [Model limits](https://docs.typesafe.ai/models) · [Pricing](https://help.typesafe.ai/articles/5187202169-how-much-does-jev-cost)
+
+For embedding, configure an authorized self-hosted or external embeddings-compatible endpoint. Set `EMBEDDING_ENDPOINT` to the full URL, `EMBEDDING_PROVIDER` to the index provider identifier, `EMBEDDING_MODEL` to a pinned model, and `EMBEDDING_DIMENSIONS` to its output size. Supply `EMBEDDING_API_KEY` if needed. Set `EMBEDDING_MAX_INPUT_TOKENS` to the endpoint's enforced maximum billable input per request and `EMBEDDING_NANOUSD_PER_INPUT_TOKEN` to its input-only rate (zero for unmetered hosting). The endpoint must return a vector in `data[0].embedding` and a token count in `usage.prompt_tokens`. Restart long-running workers after changing configuration.
+
+An interrupted or ambiguous call keeps its reservation and blocks automatic replay. With workers stopped, inspect unsettled rows in `inference_calls` (actual is null), confirm the charge with the provider, and run `php artisan inference:reconcile CALL ACTUAL_NANOUSD`. Restart workers and use `inference:resume` to process outstanding work. A confirmed charge for a lost response still counts toward the cap.

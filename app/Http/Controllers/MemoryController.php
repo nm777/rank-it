@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\IndexPassage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -32,7 +33,13 @@ class MemoryController extends Controller
 
     public function store(Request $request)
     {
-        $memory = $request->user()->memories()->create($this->validateMemory($request));
+        $data = $this->validateMemory($request);
+        $memory = DB::transaction(function () use ($request, $data) {
+            $memory = $request->user()->memories()->create($data);
+            IndexPassage::enqueue(['memory_id' => $memory->id], 'embed');
+
+            return $memory;
+        });
 
         return redirect()->route('memories.show', $memory)->with('status', 'Saved');
     }
@@ -46,8 +53,15 @@ class MemoryController extends Controller
 
     public function update(Request $request, string $memory)
     {
-        $memory = $request->user()->memories()->findOrFail($memory);
-        $memory->update($this->validateMemory($request));
+        $data = $this->validateMemory($request);
+        DB::transaction(function () use ($request, $memory, $data) {
+            $entry = $request->user()->memories()->lockForUpdate()->findOrFail($memory);
+            $entry->update($data);
+            if ($entry->wasChanged('wording')) {
+                DB::table('inference_work')->where('memory_id', $memory)->delete();
+                IndexPassage::enqueue(['memory_id' => $memory], 'embed');
+            }
+        });
 
         return redirect()->route('memories.show', $memory)->with('status', 'Saved');
     }

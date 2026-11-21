@@ -26,6 +26,8 @@ Ticket 01 verified private capture across separate sessions with the worker stop
 
 Ticket 02 verified queued MBOX import and literal passage search with a synthetic mailbox, including worker restart, repaired uploads, account isolation, and source links for identifiable quoted history. [Import one mailbox into searchable passages](issues/02-mailbox-to-passages.md)
 
+Ticket 03 implemented queued screening and embedding with shared budget reservations and verified them on synthetic data. Live Jev access and billed usage still need a funded account. The installed configuration also lacks a live embedding endpoint. [Screen and embed within budget](issues/03-budget-and-screening.md)
+
 ## Open questions
 
 [05 · Does screening save money while preserving useful evidence?](issues/05-mailbox-trial.md) is the first empirical decision. Use its results to keep or revise the screening criteria before expanding import coverage.

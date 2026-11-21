@@ -59,8 +59,11 @@ class ImportMailbox implements ShouldQueue
                 if ($created) {
                     foreach ($mailbox->passages($body) as $index => $wording) {
                         $quote = preg_match('/^\s*>/', $wording) ? trim(preg_replace('/^[ \t]*> ?/m', '', $wording)) : null;
-                        DB::table('mail_passages')->insert(['message_id' => $id, 'ordinal' => $index,
+                        $passageId = DB::table('mail_passages')->insertGetId(['message_id' => $id, 'ordinal' => $index,
                             'wording' => $wording, 'quote_text' => $quote]);
+                        if ($quote === null && trim($wording) !== '') {
+                            IndexPassage::enqueue(['passage_id' => $passageId], 'screen');
+                        }
                     }
                 }
                 DB::table('mailbox_entries')->insert(['import_id' => $this->batch, 'message_id' => $id,

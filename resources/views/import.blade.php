@@ -5,6 +5,7 @@
 @if (session('status')) <p role="status">{{ session('status') }}</p> @endif
 <p>{{ $import->status }}</p>
 <p>{{ $import->imported }} messages imported · {{ $import->unreadable }} known unreadable</p>
+@if ($pending)<p>Text search is ready. Meaning-based search is pending.</p>@endif
 @if ($attachments->isNotEmpty())
     <h2>Skipped attachments</h2>
     <ul>@foreach ($attachments as $filename)<li>{{ $filename }}</li>@endforeach</ul>
