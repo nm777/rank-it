@@ -1,0 +1,11 @@
+.git
+.scratch
+.env*
+vendor
+node_modules
+storage/logs/*
+storage/framework/views/*
+storage/framework/sessions/*
+storage/app/private/*
+bootstrap/cache/*.php
+Rank It.*

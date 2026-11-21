@@ -22,6 +22,8 @@ The first milestone is one tester opening the passage that answers a question th
 
 Build on the [architecture decisions](../../docs/adr/). One Laravel release serves the browser and worker. PostgreSQL holds the private collection, queue and search data. A shared volume stages uploads. Rank It funds inference under one cap with an answer reserve. Jev screens new imported passages before embedding and rating extraction. Retained text supports exact search and makes missed evidence diagnosable.
 
+Ticket 01 verified private capture across separate sessions with the worker stopped, account isolation in wording search and direct links, and a PostgreSQL queue job using shared staging. [Stand up private capture](issues/01-host-and-capture.md)
+
 ## Open questions
 
 [05 · Does screening save money while preserving useful evidence?](issues/05-mailbox-trial.md) is the first empirical decision. Use its results to keep or revise the screening criteria before expanding import coverage.
