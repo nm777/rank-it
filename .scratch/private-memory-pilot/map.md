@@ -32,4 +32,4 @@ Ticket 04 verified that a paraphrased question can open highlighted evidence fro
 
 ## Open questions
 
-[05 · Does screening save money while preserving useful evidence?](issues/05-mailbox-trial.md) is the first empirical decision. Use its results to keep or revise the screening criteria before expanding import coverage.
+[05 · Does screening save money while preserving useful evidence?](issues/05-mailbox-trial.md) has a reproducible synthetic comparison. The fixture traced one semantic miss to a scripted screening rejection and verified that the reply still opened through wording search. A real tester and live provider measurements are pending before deciding whether to revise the screening criteria.
