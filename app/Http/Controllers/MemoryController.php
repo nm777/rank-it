@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class MemoryController extends Controller
 {
@@ -20,7 +21,13 @@ class MemoryController extends Controller
             ->whereRaw('strpos(lower(wording), lower(?)) > 0', [trim($data['wording'])])
             ->latest()->orderByDesc('id')->limit(50)->get();
 
-        return view('memories', ['results' => $results, 'query' => $data['wording']]);
+        $passages = DB::table('mail_passage_sources')->where('user_id', $request->user()->id)
+            ->whereNull('source_id')
+            ->whereRaw('strpos(lower(coalesce(quote_text, wording)), lower(?)) > 0', [trim($data['wording'])])
+            ->selectRaw("distinct on (case when quote_text is not null and parent_identity is not null then parent_identity || ':' || quote_text else id::text end) *")
+            ->limit(50)->get();
+
+        return view('memories', ['results' => $results, 'passages' => $passages, 'query' => $data['wording']]);
     }
 
     public function store(Request $request)

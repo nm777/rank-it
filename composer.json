@@ -5,9 +5,10 @@
     "description": "Private memory capture for the Rank It pilot.",
     "require": {
         "php": "^8.2",
+        "ext-pdo_pgsql": "*",
         "laravel/framework": "^12.0",
         "laravel/tinker": "^2.10.1",
-        "ext-pdo_pgsql": "*"
+        "zbateson/mail-mime-parser": "^4"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

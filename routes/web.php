@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\MailboxController;
 use App\Http\Controllers\MemoryController;
 use Illuminate\Support\Facades\Route;
 
@@ -14,6 +15,10 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
+    Route::get('/imports', [MailboxController::class, 'index'])->name('imports.index');
+    Route::post('/imports', [MailboxController::class, 'store'])->name('imports.store');
+    Route::get('/imports/{batch}', [MailboxController::class, 'show'])->whereUuid('batch')->name('imports.show');
+    Route::get('/passages/{passage}', [MailboxController::class, 'passage'])->whereNumber('passage')->name('passages.show');
     Route::post('/logout', [AccountController::class, 'logout'])->name('logout');
     Route::get('/', [MemoryController::class, 'index'])->name('memories.index');
     Route::post('/search', [MemoryController::class, 'search'])->name('memories.search');

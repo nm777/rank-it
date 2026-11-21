@@ -1,0 +1,33 @@
+From sam@example.test Mon Mar  3 10:00:00 2025
+From: Sam <sam@example.test>
+Date: Mon, 3 Mar 2025 10:00:00 +0000
+Message-ID: <reply@example.test>
+In-Reply-To: <original@example.test>
+Subject: Re: Storage
+
+Agreed.
+
+> The key is in B-17.
+
+From broken@example.test Mon Mar  3 10:01:00 2025
+Unreadable synthetic record
+
+From maya@example.test Mon Mar  3 09:00:00 2025
+From: Maya <maya@example.test>
+Date: Mon, 3 Mar 2025 09:00:00 +0000
+Message-ID: <original@example.test>
+Subject: Storage
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary=test-boundary
+
+--test-boundary
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+The key is in B=2D17.
+--test-boundary
+Content-Type: text/plain; name="inventory.txt"
+Content-Disposition: attachment; filename="inventory.txt"
+
+Attachment-only secret
+--test-boundary--

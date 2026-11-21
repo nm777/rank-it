@@ -24,6 +24,8 @@ Build on the [architecture decisions](../../docs/adr/). One Laravel release serv
 
 Ticket 01 verified private capture across separate sessions with the worker stopped, account isolation in wording search and direct links, and a PostgreSQL queue job using shared staging. [Stand up private capture](issues/01-host-and-capture.md)
 
+Ticket 02 verified queued MBOX import and literal passage search with a synthetic mailbox, including worker restart, repaired uploads, account isolation, and source links for identifiable quoted history. [Import one mailbox into searchable passages](issues/02-mailbox-to-passages.md)
+
 ## Open questions
 
 [05 · Does screening save money while preserving useful evidence?](issues/05-mailbox-trial.md) is the first empirical decision. Use its results to keep or revise the screening criteria before expanding import coverage.
