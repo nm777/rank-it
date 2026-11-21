@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Inference\Recall;
 use App\Jobs\IndexPassage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +14,26 @@ class MemoryController extends Controller
         return view('memories', [
             'results' => $request->user()->memories()->latest()->orderByDesc('id')->limit(10)->get(),
         ]);
+    }
+
+    public function input(Request $request, Recall $recall)
+    {
+        $data = $this->validateMemory($request);
+        $choice = $request->validate(['intent' => ['nullable', 'in:ask,save']])['intent'] ?? null;
+        $text = trim($data['wording']);
+        if ($choice === 'save') {
+            return $this->store($request);
+        }
+        if ($choice === 'ask' || str_contains($text, '?')
+            || preg_match('/^(?:who|what|when|where|why|how|which|did|does|can|could|would|should|suppose|imagine|if)\b/iu', $text)) {
+            return view('recall', $recall->ask($request->user()->id, $text));
+        }
+        if (preg_match('/^(?:remember (?:this|that)\b|I (?:parked|left|put|stored|bought|hired|liked|loved|preferred)\b)/iu', $text)
+            && ! preg_match('/\b(?:if|maybe|suppose|hypothetically|might|would)\b/iu', $text)) {
+            return $this->store($request);
+        }
+
+        return view('clarify', $data);
     }
 
     public function search(Request $request)

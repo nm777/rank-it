@@ -28,6 +28,8 @@ Ticket 02 verified queued MBOX import and literal passage search with a syntheti
 
 Ticket 03 implemented queued screening and embedding with shared budget reservations and verified them on synthetic data. Live Jev access and billed usage still need a funded account. The installed configuration also lacks a live embedding endpoint. [Screen and embed within budget](issues/03-budget-and-screening.md)
 
+Ticket 04 verified that a paraphrased question can open highlighted evidence from a synthetic mailbox through the shared input. Account isolation, partial answers, clarification and direct results under budget exhaustion or outages passed local route tests. Provider billing and real-world retrieval quality await live verification. [Answer a question with verifiable passages](issues/04-cited-recall.md)
+
 ## Open questions
 
 [05 · Does screening save money while preserving useful evidence?](issues/05-mailbox-trial.md) is the first empirical decision. Use its results to keep or revise the screening criteria before expanding import coverage.

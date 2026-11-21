@@ -21,6 +21,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/passages/{passage}', [MailboxController::class, 'passage'])->whereNumber('passage')->name('passages.show');
     Route::post('/logout', [AccountController::class, 'logout'])->name('logout');
     Route::get('/', [MemoryController::class, 'index'])->name('memories.index');
+    Route::post('/input', [MemoryController::class, 'input'])->name('memories.input');
     Route::post('/search', [MemoryController::class, 'search'])->name('memories.search');
     Route::post('/memories', [MemoryController::class, 'store'])->name('memories.store');
     Route::get('/memories/{memory}', [MemoryController::class, 'show'])->whereUuid('memory')->name('memories.show');

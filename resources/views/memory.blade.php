@@ -6,8 +6,8 @@
 @if (session('status'))
     <p role="status">{{ session('status') }}</p>
 @endif
-<p class="wording">{{ $memory->wording }}</p>
-<p>Captured {{ $memory->created_at->toDateString() }} · Experience {{ $memory->experience_date ?? 'date unknown' }}</p>
+<p class="wording" id="passage">@if(request()->boolean('highlight'))@include('highlight', ['wording' => $memory->wording])@else{{ $memory->wording }}@endif</p>
+<p>Author: You · Captured {{ $memory->created_at->toDateString() }} · Experience {{ $memory->experience_date ?? 'date unknown' }}</p>
 <details @if($errors->any()) open @endif>
     <summary>Correct memory</summary>
     <form method="post" action="{{ route('memories.update', $memory) }}" class="stack">

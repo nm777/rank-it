@@ -2,13 +2,13 @@
 @section('title', 'My memories')
 @section('content')
 <h1>My memories</h1>
-<form method="post" action="{{ route('memories.store') }}" class="stack">
+<form method="post" action="{{ route('memories.input') }}" class="stack">
     @csrf
-    <label for="wording">Write or dictate a memory, or enter words to find</label>
+    <label for="wording">Write a memory or ask a question</label>
     <textarea id="wording" name="wording" rows="5" maxlength="10000" required>{{ "\n" }}{{ old('wording', $query ?? '') }}</textarea>
     @include('experience-date', ['experienceDate' => null])
     <div class="actions">
-        <button>Remember this</button>
+        <button>Continue</button>
         <button class="secondary" formaction="{{ route('memories.search') }}">Find wording</button>
     </div>
 </form>

@@ -1,6 +1,15 @@
 <?php
 
 return [
+    'answer' => [
+        'endpoint' => env('ANSWER_ENDPOINT'),
+        'model' => env('ANSWER_MODEL'),
+        'key' => env('ANSWER_API_KEY'),
+        'input_rate' => env('ANSWER_NANOUSD_PER_INPUT_TOKEN'),
+        'output_rate' => env('ANSWER_NANOUSD_PER_OUTPUT_TOKEN'),
+        'max_input' => env('ANSWER_MAX_INPUT_TOKENS'),
+        'max_output' => env('ANSWER_MAX_OUTPUT_TOKENS'),
+    ],
     'cap' => env('INFERENCE_CAP_NANOUSD', 0),
     'reserve' => env('INFERENCE_ANSWER_RESERVE_NANOUSD', 0),
     'jev_key' => env('TYPESAFE_API_KEY'),
