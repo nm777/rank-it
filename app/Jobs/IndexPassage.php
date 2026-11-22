@@ -27,15 +27,23 @@ class IndexPassage implements ShouldQueue
     {
         $query = DB::table('inference_work')->where('id', $this->workId);
         $work = DB::transaction(function () use ($query, $providers, $budget) {
+            $providers->select(DB::table('embedding_index_state')->sharedLock()->first()->profile);
             $work = $query->lockForUpdate()->first();
-            if (! $work || $work->call_id || ! in_array($work->stage, ['screen', 'embed'], true)) {
+            if (! $work || $work->call_id) {
+                return null;
+            }
+            $work->contextOnly = $work->stage === 'indexed' && $work->context_changed;
+            if ($work->contextOnly) {
+                $work->stage = 'screen';
+            }
+            if (! in_array($work->stage, ['screen', 'embed'], true)) {
                 return null;
             }
             $estimate = $providers->estimate($work->stage);
             if ($estimate === null || ! ($work->call_id = $budget->reserve($work->stage, $estimate))) {
                 return null;
             }
-            $query->update(['call_id' => $work->call_id]);
+            (clone $query)->update(['call_id' => $work->call_id]);
             if ($work->memory_id) {
                 $work->wording = DB::table('memories')->where('id', $work->memory_id)->value('wording');
             } else {
@@ -45,7 +53,7 @@ class IndexPassage implements ShouldQueue
                     $parent = DB::table('mail_messages')->where('user_id', $passage->user_id)
                         ->where('identity', $passage->parent_identity)->value('id');
                     $work->context = DB::table('mail_passages')->whereIn('message_id', array_filter([$parent, $passage->message_id]))
-                        ->where('id', '!=', $passage->id)->orderBy('message_id')->orderBy('ordinal')
+                        ->where('id', '!=', $passage->id)->orderByRaw('case when message_id = ? then 0 else 1 end', [$parent])->orderBy('ordinal')
                         ->selectRaw('left(wording, 1000) as excerpt')->limit(8)->get()->pluck('excerpt')->all();
                 }
             }
@@ -64,9 +72,8 @@ class IndexPassage implements ShouldQueue
             } else {
                 [$vector, $tokens] = $providers->embed($work->wording);
                 $updates = ['stage' => 'indexed', 'embedding' => json_encode($vector, JSON_THROW_ON_ERROR),
-                    'configuration' => json_encode(['provider' => config('inference.provider'),
-                        'model' => config('inference.model'), 'dimensions' => count($vector)], JSON_THROW_ON_ERROR)];
-                $cost = $tokens * (int) config('inference.rate');
+                    'configuration' => $providers->configuration()];
+                $cost = $tokens * $providers->rate();
             }
         } catch (\Throwable $error) {
             // TypeSafe documents rejected requests as unbilled. Other outcomes may have been charged.
@@ -82,7 +89,23 @@ class IndexPassage implements ShouldQueue
 
         DB::transaction(function () use ($query, $updates, $work, $cost, $tokens, $budget) {
             $budget->settle($work->call_id, $cost, $tokens);
-            if ($query->where('call_id', $work->call_id)->update($updates + ['call_id' => null]) && $updates['stage'] === 'embed') {
+            $current = $query->lockForUpdate()->first();
+            if (! $current || $current->call_id !== $work->call_id) {
+                return;
+            }
+            if ($work->stage === 'screen') {
+                if ($work->contextOnly) {
+                    $updates['stage'] = 'indexed';
+                } elseif ($current->context_changed && ! $work->context_changed) {
+                    $updates['stage'] = 'screen';
+                } else {
+                    DB::table('passage_rechecks')->where('work_id', $work->id)->whereNull('qualified')
+                        ->update(['qualified' => $updates['stage'] === 'embed']);
+                }
+            }
+            $rescreen = $work->stage === 'embed' && $current->context_changed;
+            $query->update($updates + ['call_id' => null, 'context_changed' => $rescreen]);
+            if ($rescreen || in_array($updates['stage'], ['embed', 'screen'])) {
                 self::dispatch($this->workId);
             }
         });

@@ -22,4 +22,13 @@ return [
     'key' => env('EMBEDDING_API_KEY'),
     'rate' => env('EMBEDDING_NANOUSD_PER_INPUT_TOKEN'),
     'max_tokens' => env('EMBEDDING_MAX_INPUT_TOKENS'),
+    'alternate' => [
+        'endpoint' => env('ALTERNATE_EMBEDDING_ENDPOINT'),
+        'provider' => env('ALTERNATE_EMBEDDING_PROVIDER'),
+        'model' => env('ALTERNATE_EMBEDDING_MODEL'),
+        'dimensions' => env('ALTERNATE_EMBEDDING_DIMENSIONS'),
+        'key' => env('ALTERNATE_EMBEDDING_API_KEY'),
+        'rate' => env('ALTERNATE_EMBEDDING_NANOUSD_PER_INPUT_TOKEN'),
+        'max_tokens' => env('ALTERNATE_EMBEDDING_MAX_INPUT_TOKENS'),
+    ],
 ];

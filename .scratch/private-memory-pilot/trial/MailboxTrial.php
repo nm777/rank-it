@@ -97,7 +97,8 @@ class MailboxTrial extends TestCase
         $uploadUrl = $upload->headers->get('Location');
         for ($step = 0; $step < 20 && DB::table('jobs')->exists(); $step++) {
             if (! $screened) {
-                // Preserve parser eligibility and queued jobs. Skip only screening for this baseline.
+                // The unscreened comparison bypasses both initial and late-context screening.
+                DB::table('inference_work')->where('context_changed', true)->update(['context_changed' => false]);
                 DB::table('inference_work')->where('stage', 'screen')->update(['stage' => 'embed']);
             }
             $this->artisan('queue:work database --once --sleep=0')->assertSuccessful();
@@ -153,7 +154,7 @@ class MailboxTrial extends TestCase
         $ledger = DB::table('inference_calls')->selectRaw('purpose, count(*) as calls, sum(actual) as nanousd')
             ->groupBy('purpose')->orderBy('purpose')->get()->keyBy('purpose');
         $this->assertDatabaseMissing('inference_calls', ['actual' => null]);
-        $this->assertSame($screened ? 1916 : 2160, (int) $ledger->sum('nanousd'));
+        $this->assertSame($screened ? 2084 : 2160, (int) $ledger->sum('nanousd'));
         fwrite(STDOUT, json_encode([
             'arm' => $screened ? 'screened' : 'unscreened', 'local_import_ms' => $importMs,
             'stages' => $stages, 'screen_context' => $screens, 'questions' => $outcomes, 'simulated_ledger' => $ledger,

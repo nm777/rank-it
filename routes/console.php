@@ -38,7 +38,7 @@ Artisan::command('pilot:invite {email}', function (string $email): int {
 })->purpose('Issue or replace a seven-day pilot invitation');
 
 Artisan::command('inference:resume', function () {
-    DB::table('inference_work')->whereIn('stage', ['screen', 'embed'])->whereNull('call_id')
+    DB::table('inference_work')->where(fn ($q) => $q->whereIn('stage', ['screen', 'embed'])->orWhere('context_changed', true))->whereNull('call_id')
         ->eachById(fn ($work) => IndexPassage::dispatch($work->id));
 })->purpose('Queue pending screening and embeddings from retained wording');
 
@@ -83,7 +83,46 @@ Artisan::command('inference:reconcile {call} {actual : Confirmed cost in USD bil
         }
         $budget->settle((int) $call, (int) $actual, null);
         DB::table('inference_work')->where('call_id', $call)->update(['call_id' => null]);
+        DB::table('replacement_embeddings')->where('call_id', $call)->update(['call_id' => null]);
 
         return 0;
     });
 })->purpose('Settle an interrupted call after stopping the worker and confirming its cost');
+
+Artisan::command('inference:recheck {batch} {--status}', function (string $batch) {
+    if (! Str::isUuid($batch) || ! DB::table('mailbox_imports')->where('batch_id', $batch)->exists()) {
+        $this->error('Unknown batch.');
+
+        return 1;
+    }
+    if (! $this->option('status')) {
+        DB::transaction(function () use ($batch) {
+            $owner = DB::table('mailbox_imports')->where('batch_id', $batch)->value('user_id');
+            DB::table('users')->where('id', $owner)->lockForUpdate()->first();
+            $passages = DB::table('mail_passages')->join('mailbox_entries', 'mailbox_entries.message_id', '=', 'mail_passages.message_id')
+                ->join('mailbox_imports', 'mailbox_imports.id', '=', 'mailbox_entries.import_id')->where('batch_id', $batch)->select('mail_passages.id');
+            $work = DB::table('inference_work')->where('stage', 'skipped')->whereIn('passage_id', $passages)->lockForUpdate()->get();
+            foreach ($work as $item) {
+                DB::table('passage_rechecks')->updateOrInsert(['batch_id' => $batch, 'work_id' => $item->id], ['qualified' => null]);
+                DB::table('inference_work')->where('id', $item->id)->update(['stage' => 'screen']);
+                IndexPassage::dispatch($item->id);
+            }
+        });
+    }
+    $results = DB::table('passage_rechecks')->where('batch_id', $batch);
+    $this->info(sprintf('%d pending, %d rechecked, %d newly qualifying.', (clone $results)->whereNull('qualified')->count(),
+        (clone $results)->whereNotNull('qualified')->count(), (clone $results)->where('qualified', true)->count()));
+
+    return 0;
+})->purpose('Recheck screened-out passages in one batch or report aggregate results');
+
+Artisan::command('inference:rebuild {profile}', function (string $profile, App\Inference\RebuildIndex $index, Providers $provider, Budget $budget) {
+    if (! in_array($profile, ['default', 'alternate'], true) || ! $index->run($profile, $provider, $budget)) {
+        $this->error('Replacement incomplete. Check configuration, reservations and budget, then retry.');
+
+        return 1;
+    }
+    $this->info("Active embedding profile: $profile.");
+
+    return 0;
+})->purpose('Rebuild from retained wording and atomically activate the completed embedding profile');

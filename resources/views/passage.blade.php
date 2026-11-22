@@ -9,4 +9,6 @@
     @endif
     <div style="white-space: pre-wrap; overflow-wrap: anywhere" id="passage-{{ $part->id }}">@if ($part->id === $selected->id)@include('highlight', ['wording' => $part->wording])@else{{ $part->wording }}@endif</div>
 @endforeach
+@if ($skipped)<form method="post" action="{{ route('passages.promote', $selected->id) }}">@csrf<button>Remember this</button></form>@endif
+<form method="post" action="{{ route('messages.delete', $message->id) }}">@csrf @method('DELETE')<button>Delete message from all batches</button></form>
 @endsection

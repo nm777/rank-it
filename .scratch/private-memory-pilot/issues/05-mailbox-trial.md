@@ -44,3 +44,7 @@ One recorded run passed 2 cases and 98 assertions. Local upload-through-queue-dr
 ## Comments
 
 The synthetic portion is complete. The ticket remains claimed pending a real tester and an authorized live comparison.
+
+### Rerun after ticket 06
+
+The fixture puts Sam’s reply before Maya’s original. Linking that original now triggers one additional screen of the reply. The scripted decision still rejects it. The screened arm spent 504 simulated USD billionths on three screens and 500 on one passage embedding, compared with 1,000 for the two unscreened passage embeddings. Including questions and answers, the totals were 2,084 and 2,160 respectively. The two citation outcomes remained the same. The unscreened harness bypasses late-context screening as well as the initial screen. Real tester evidence is still pending.

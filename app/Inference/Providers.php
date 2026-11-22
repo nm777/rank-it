@@ -9,15 +9,33 @@ class Providers
 {
     public const JEV_RATE = 42; // USD billionths per input token
 
+    private array $embedding;
+
+    public function select(string $profile): void
+    {
+        $this->embedding = $profile === 'default' ? config('inference') : config('inference.alternate');
+    }
+
+    public function configuration(): string
+    {
+        return json_encode(['provider' => $this->embedding['provider'], 'model' => $this->embedding['model'],
+            'dimensions' => (int) $this->embedding['dimensions']], JSON_THROW_ON_ERROR);
+    }
+
+    public function rate(): int
+    {
+        return (int) $this->embedding['rate'];
+    }
+
     public function estimate(string $stage): ?int
     {
         if ($stage === 'screen') {
             return config('inference.jev_key') && config('inference.jev_verified') ? 65536 * self::JEV_RATE : null;
         }
-        $rate = filter_var(config('inference.rate'), FILTER_VALIDATE_INT);
-        $max = filter_var(config('inference.max_tokens'), FILTER_VALIDATE_INT);
-        if (! config('inference.endpoint') || ! config('inference.model') || ! config('inference.provider')
-            || (int) config('inference.dimensions') < 1 || $rate === false || $rate < 0 || $max < 1) {
+        $rate = filter_var($this->embedding['rate'], FILTER_VALIDATE_INT);
+        $max = filter_var($this->embedding['max_tokens'], FILTER_VALIDATE_INT);
+        if (! $this->embedding['endpoint'] || ! $this->embedding['model'] || ! $this->embedding['provider']
+            || (int) $this->embedding['dimensions'] < 1 || $rate === false || $rate < 0 || $max < 1) {
             return null;
         }
 
@@ -42,14 +60,14 @@ class Providers
     public function embed(string $wording): array
     {
         $http = Http::withoutRedirecting()->timeout(25);
-        if ($key = config('inference.key')) {
+        if ($key = $this->embedding['key']) {
             $http->withToken($key);
         }
-        $response = $http->post(config('inference.endpoint'), [
-            'model' => config('inference.model'), 'input' => $wording,
+        $response = $http->post($this->embedding['endpoint'], [
+            'model' => $this->embedding['model'], 'input' => $wording,
         ])->throw()->json();
         $vector = data_get($response, 'data.0.embedding');
-        if (! is_array($vector) || ! array_is_list($vector) || count($vector) !== (int) config('inference.dimensions')) {
+        if (! is_array($vector) || ! array_is_list($vector) || count($vector) !== (int) $this->embedding['dimensions']) {
             throw new UnexpectedValueException('Invalid embedding dimensions.');
         }
         foreach ($vector as $value) {

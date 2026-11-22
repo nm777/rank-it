@@ -2,7 +2,7 @@
 
 ## Notes
 
-The first milestone is one tester opening the passage that answers a question they chose before importing their mailbox. Capture that question before running the import. Use small fixtures while building and defer the other import formats until this path has been tried. The [pilot specification](spec.md) defines the full release scope.
+The first milestone is one tester opening the passage that answers a question they chose before importing their mailbox. Capture that question before running the import. Ticket 05 exercised this path with synthetic fixtures and supplied the implementation handoff for ticket 06. The first real tester milestone remains open. The [pilot specification](spec.md) defines the full release scope.
 
 ### First milestone
 
@@ -29,6 +29,8 @@ Ticket 02 verified queued MBOX import and literal passage search with a syntheti
 Ticket 03 implemented queued screening and embedding with shared budget reservations and verified them on synthetic data. Live Jev access and billed usage still need a funded account. The installed configuration also lacks a live embedding endpoint. [Screen and embed within budget](issues/03-budget-and-screening.md)
 
 Ticket 04 verified that a paraphrased question can open highlighted evidence from a synthetic mailbox through the shared input. Account isolation, partial answers, clarification and direct results under budget exhaustion or outages passed local route tests. Provider billing and real-world retrieval quality await live verification. [Answer a question with verifiable passages](issues/04-cited-recall.md)
+
+Ticket 06 completed multi-file import, collection controls, scoped rechecks and late-reply screening. A synthetic index rebuild paused under budget pressure, resumed from retained passages and switched queries only after replacement vectors were ready. Ticket 07 can proceed. [Complete import coverage and collection controls](issues/06-import-lifecycle.md)
 
 ## Open questions
 

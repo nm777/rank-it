@@ -22,7 +22,7 @@ Open the printed link and create the account. Invitations expire after seven day
 
 The web and worker mount the same private `import-staging` volume. The worker uses PostgreSQL's `jobs` table. Capture commits directly to PostgreSQL and can be read while the worker is stopped. `Find wording` searches saved text in the signed-in account.
 
-For a native run, use PHP 8.2 or later with `pdo_pgsql` and Composer. Provide a PostgreSQL database with pgvector available to the migration role, configure `.env`, and run `composer install`, `php artisan key:generate` and `php artisan migrate`. Start `php artisan serve` and `php artisan queue:work database --timeout=60 --tries=3` from the same checkout. Set `IMPORT_STAGING_PATH` to the same writable private directory for both processes if they run from separate checkouts.
+For a native run, use PHP 8.2 or later with `pdo_pgsql`, `zip` and Composer. Provide a PostgreSQL database with pgvector available to the migration role, configure `.env`, and run `composer install`, `php artisan key:generate` and `php artisan migrate`. Start `php artisan serve` and `php artisan queue:work database --timeout=60 --tries=3` from the same checkout. Set `IMPORT_STAGING_PATH` to the same writable private directory for both processes if they run from separate checkouts.
 
 ## Tests
 
@@ -47,6 +47,14 @@ Supply `TYPESAFE_API_KEY` and run `php artisan inference:check-jev` before enabl
 For embedding, configure an authorized self-hosted or external embeddings-compatible endpoint. Set `EMBEDDING_ENDPOINT` to the full URL, `EMBEDDING_PROVIDER` to the index provider identifier, `EMBEDDING_MODEL` to a pinned model, and `EMBEDDING_DIMENSIONS` to its output size. Supply `EMBEDDING_API_KEY` if needed. Set `EMBEDDING_MAX_INPUT_TOKENS` to the endpoint's enforced maximum billable input per request and `EMBEDDING_NANOUSD_PER_INPUT_TOKEN` to its input-only rate (zero for unmetered hosting). The endpoint must return a vector in `data[0].embedding` and a token count in `usage.prompt_tokens`. Restart long-running workers after changing configuration.
 
 An interrupted or ambiguous call keeps its reservation and blocks automatic replay. With workers stopped, inspect unsettled rows in `inference_calls` (actual is null), confirm the charge with the provider, and run `php artisan inference:reconcile CALL ACTUAL_NANOUSD`. Restart workers and use `inference:resume` to process outstanding work. A confirmed charge for a lost response still counts toward the cap.
+
+## Import batches and rechecks
+
+The imports page accepts up to four files per batch, each up to 16 MB. Use EML or MBOX for mail, DOCX for Word, and UTF-8 TXT or Markdown for readable conversations and notes. Each file has its own progress, outcome and attachment summary. Removing a batch preserves messages with other memberships. Deleting a message removes it across existing batches. A later upload can add it again.
+
+Open a screened-out wording match and choose **Remember this** to queue its embedding. Run `php artisan inference:recheck BATCH_UUID` to screen skipped passages from one batch. Run the same command with `--status` for aggregate counts. The owner can open newly qualifying passages on the batch page.
+
+To change embedding models, leave the active profile configured and set the inactive profile on both web and worker. The default profile uses the `EMBEDDING_*` settings above. The alternate uses the same names prefixed with `ALTERNATE_`. Restart long-running processes after installing the inactive settings. Run `php artisan inference:rebuild alternate` (or `default` to switch back). It builds replacement vectors from retained wording under the background budget. An incomplete run keeps the active index available. Rerun the command after resolving budget or provider interruptions. Reconcile ambiguous rebuild calls using the same procedure as other inference calls.
 
 ## Cited recall
 

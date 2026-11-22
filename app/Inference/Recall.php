@@ -33,8 +33,8 @@ class Recall
             select * from matches where exact or overlap > 0 order by exact desc, overlap desc, key limit 8",
             [$owner, $owner, $question, $question]);
         $semantic = [];
-        $configuration = json_encode(['provider' => config('inference.provider'), 'model' => config('inference.model'),
-            'dimensions' => (int) config('inference.dimensions')]);
+        $this->providers->select(DB::table('embedding_index_state')->value('profile'));
+        $configuration = $this->providers->configuration();
         $indexed = "with sources as ($sources) select sources.*, w.embedding from sources join inference_work w
             on sources.key = coalesce('memory:' || w.memory_id, 'passage:' || w.passage_id)
             where w.stage = 'indexed' and w.configuration = ?::jsonb";
@@ -44,7 +44,7 @@ class Recall
             && ($call = $this->budget->reserve('answer', $estimate))) {
             try {
                 [$vector, $tokens] = $this->providers->embed($question);
-                $this->budget->settle($call, $tokens * config('inference.rate'), $tokens);
+                $this->budget->settle($call, $tokens * $this->providers->rate(), $tokens);
                 $semantic = DB::select("select key, wording, author, date from ($indexed) hits
                     where (embedding <=> ?::vector) < 1 order by embedding <=> ?::vector, key limit 8",
                     [...$bindings, json_encode($vector), json_encode($vector)]);
