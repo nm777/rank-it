@@ -112,7 +112,7 @@ class MailboxController extends Controller
             DB::table('mail_messages')->where('id', $message)->delete();
         });
 
-        return redirect()->route('imports.index');
+        return redirect()->route('imports.index')->with('evidence_changed', true);
     }
 
     public function remove(Request $request, string $batch)
@@ -133,6 +133,6 @@ class MailboxController extends Controller
             Storage::disk('import-staging')->delete("$owner/$id");
         }
 
-        return redirect()->route('imports.index');
+        return redirect()->route('imports.index')->with('evidence_changed', true);
     }
 }

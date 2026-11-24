@@ -26,6 +26,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/memories/{memory}/person', [MemoryController::class, 'identifyPerson'])->whereUuid('memory')->name('memories.person');
     Route::post('/logout', [AccountController::class, 'logout'])->name('logout');
     Route::get('/', [MemoryController::class, 'index'])->name('memories.index');
+    Route::post('/conversation/new', [MemoryController::class, 'reset'])->name('conversation.new');
+    Route::get('/conversation/{turn}/status', [MemoryController::class, 'status'])->whereUuid('turn')->name('conversation.status');
+    Route::post('/conversation/{turn}/dismiss', [MemoryController::class, 'dismiss'])->whereUuid('turn')->name('conversation.dismiss');
+    Route::delete('/memories/{memory}', [MemoryController::class, 'delete'])->whereUuid('memory')->name('memories.delete');
+    Route::post('/passages/{passage}/correct', [MemoryController::class, 'store'])->whereNumber('passage')->name('passages.correct');
     Route::post('/input', [MemoryController::class, 'input'])->name('memories.input');
     Route::post('/search', [MemoryController::class, 'search'])->name('memories.search');
     Route::post('/memories', [MemoryController::class, 'store'])->name('memories.store');

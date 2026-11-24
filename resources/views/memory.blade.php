@@ -22,11 +22,13 @@
         <button>Save correction</button>
     </form>
 </details>
-<details><summary>Identify a person in this memory</summary>
+<details id="identify-person" @if(request()->filled('person')) open @endif><summary>Identify a person in this memory</summary>
 <form method="post" action="{{ route('memories.person', $memory) }}">@csrf
 @if ($ratings->pluck('subject')->unique()->count() > 1)
 <label>Mention <select name="subject">@foreach ($ratings->pluck('subject')->unique() as $subject)<option @selected($subject === $memory->identified_subject)>{{ $subject }}</option>@endforeach</select></label>
 @endif
-<label>Person <input name="person" required maxlength="255" value="{{ $memory->identified_person }}"></label>
+<label>Person <input name="person" required maxlength="255" value="{{ is_string(request('person')) ? request('person') : $memory->identified_person }}"></label>
 <button>Save identity link</button></form></details>
+@if ($memory->corrects_passage_id)<p>Correction to <a href="{{ route('passages.show', $memory->corrects_passage_id) }}">original passage</a></p>@endif
+<form method="post" action="{{ route('memories.delete', $memory) }}">@csrf @method('DELETE')<button>Delete memory</button></form>
 @endsection

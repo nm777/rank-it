@@ -2,6 +2,7 @@
 @section('title', 'Ratings')
 @section('content')
 <a href="{{ route('memories.index') }}">My memories</a>
+<section id="answer">
 <h1>{{ $question }}</h1>
 <p>{{ count($confirmed) }} confirmed {{ Str::plural('rating', count($confirmed)) }} found.</p>
 @if ($partial)<p>Ratings cover only the processed portion of your imports.</p>@endif
@@ -13,7 +14,7 @@
 @if ($row->memory_id)<a href="{{ route('memories.show', [$row->memory_id, 'highlight' => 1]) }}#passage">Original wording</a>
 @else<a href="{{ route('passages.show', $row->passage_id) }}#passage-{{ $row->passage_id }}">Original score</a>
 @if ($row->reply)<a href="{{ route('passages.show', $row->reply) }}#passage-{{ $row->reply }}">Agreement</a>@endif
-@endif</article>
+@endif @include('dismiss-source', ['key' => $row->memory_id ? 'memory:'.$row->memory_id : 'passage:'.$row->passage_id])</article>
 @endforeach
 @endforeach
 @foreach ($identities as $row)
@@ -24,4 +25,6 @@
 @if ($row->address)<button name="scope" value="address">Yes, {{ $row->address }} is my personal address</button>@endif
 <button name="scope" value="other">Someone else wrote this</button></form>
 @endforeach
+</section>
+@include('conversation-controls')
 @endsection

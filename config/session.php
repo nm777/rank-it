@@ -20,6 +20,11 @@ return [
 
     'driver' => env('SESSION_DRIVER', 'database'),
 
+    // Evidence checks in other tabs share the same conversation as the active request.
+    'block' => true,
+    'block_lock_seconds' => 90,
+    'block_wait_seconds' => 90,
+
     /*
     |--------------------------------------------------------------------------
     | Session Lifetime

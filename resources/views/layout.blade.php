@@ -26,5 +26,6 @@
     @endif
     @yield('content')
 </main>
+@if(session("evidence_changed"))<script>if (window.BroadcastChannel) { const channel = new BroadcastChannel("rank-it-evidence"); channel.postMessage("changed"); channel.close(); }</script>@endif
 </body>
 </html>

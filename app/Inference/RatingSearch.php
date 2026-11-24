@@ -18,7 +18,10 @@ class RatingSearch
         if (! preg_match('/\b(?:ratings?|rate[ds]?|scores?|shortlist)\b|\d\s*\/\s*\d/i', $question)) {
             return null;
         }
-        $rows = DB::select(<<<'SQL'
+        $memoryVersion = Conversation::fingerprint('memory', 'm.');
+        $originalVersion = Conversation::fingerprint('passage', 'original.');
+        $replyVersion = Conversation::fingerprint('passage', 'p.');
+        $rows = DB::select(<<<SQL
             with originals as (
                 select r.*, p.message_id as original_message from ratings r
                 left join mail_passage_sources p on p.id=r.passage_id
@@ -31,8 +34,10 @@ class RatingSearch
                 join inference_work w on w.passage_id=p.id
                 where not w.context_changed and (w.agreement='' or w.agreement=lower(r.subject))
             )
-            select r.*, p.sender, p.sent_date, p.message_id, msg.authored_by_me, m.created_at, case when lower(r.subject)=lower(m.identified_subject) then m.identified_person end as identified_person
-            from evidence r left join mail_passage_sources p on p.id=coalesce(r.reply,r.passage_id)
+            select r.*, case when r.memory_id is not null then $memoryVersion else $originalVersion end as source_version,
+                $replyVersion as reply_version, p.sender, p.sent_date, p.message_id, msg.authored_by_me, m.created_at, case when lower(r.subject)=lower(m.identified_subject) then m.identified_person end as identified_person
+            from evidence r left join mail_passage_sources original on original.id=r.passage_id
+            left join mail_passage_sources p on p.id=coalesce(r.reply,r.passage_id)
             left join mail_messages msg on msg.id=p.message_id left join memories m on m.id=r.memory_id
             order by r.id,r.reply
             SQL, [$owner]);

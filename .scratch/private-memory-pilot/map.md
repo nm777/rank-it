@@ -37,3 +37,5 @@ Ticket 07 verified current and historical rating searches, partial coverage, and
 ## Open questions
 
 [05 · Does screening save money while preserving useful evidence?](issues/05-mailbox-trial.md) has a reproducible synthetic comparison. The fixture traced one semantic miss to a scripted screening rejection and verified that the reply still opened through wording search. A real tester and live provider measurements are pending before deciding whether to revise the screening criteria.
+
+[08 · Verify recall across changes and real decisions](issues/08-conversation-and-pilot.md) passed synthetic conversation and evidence-change checks, including edit and deletion in separate browser tabs. A real tester’s return visit and assessment of whether the evidence helped a decision remain pending.
