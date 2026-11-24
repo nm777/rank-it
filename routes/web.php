@@ -22,6 +22,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/passages/{passage}/promote', [MailboxController::class, 'promote'])->whereNumber('passage')->name('passages.promote');
     Route::delete('/imports/{batch}', [MailboxController::class, 'remove'])->whereUuid('batch')->name('imports.remove');
     Route::delete('/messages/{message}', [MailboxController::class, 'deleteMessage'])->whereNumber('message')->name('messages.delete');
+    Route::post('/messages/{message}/identity', [MemoryController::class, 'identify'])->whereNumber('message')->name('messages.identity');
+    Route::post('/memories/{memory}/person', [MemoryController::class, 'identifyPerson'])->whereUuid('memory')->name('memories.person');
     Route::post('/logout', [AccountController::class, 'logout'])->name('logout');
     Route::get('/', [MemoryController::class, 'index'])->name('memories.index');
     Route::post('/input', [MemoryController::class, 'input'])->name('memories.input');

@@ -38,9 +38,12 @@ Artisan::command('pilot:invite {email}', function (string $email): int {
 })->purpose('Issue or replace a seven-day pilot invitation');
 
 Artisan::command('inference:resume', function () {
-    DB::table('inference_work')->where(fn ($q) => $q->whereIn('stage', ['screen', 'embed'])->orWhere('context_changed', true))->whereNull('call_id')
+    DB::table('inference_work')->whereNull('call_id')
+        ->where(fn ($q) => $q->whereIn('stage', ['screen', 'embed'])
+            ->orWhere('context_changed', true)
+            ->orWhere(fn ($q) => $q->where('stage', 'indexed')->whereNotNull('passage_id')->where('ratings_processed', false)))
         ->eachById(fn ($work) => IndexPassage::dispatch($work->id));
-})->purpose('Queue pending screening and embeddings from retained wording');
+})->purpose('Queue pending screening, rating extraction and embeddings from retained wording');
 
 Artisan::command('inference:check-jev', function (Providers $providers, Budget $budget) {
     if (! config('inference.jev_key')) {

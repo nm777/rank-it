@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Inference\Ratings;
+use App\Inference\RatingSearch;
 use App\Inference\Recall;
 use App\Jobs\IndexPassage;
 use Illuminate\Http\Request;
@@ -26,10 +28,17 @@ class MemoryController extends Controller
         }
         if ($choice === 'ask' || str_contains($text, '?')
             || preg_match('/^(?:who|what|when|where|why|how|which|did|does|can|could|would|should|suppose|imagine|if)\b/iu', $text)) {
+            if ($ratings = (new RatingSearch)->ask($request->user()->id, $text)) {
+                return view('rating-results', $ratings);
+            }
+
             return view('recall', $recall->ask($request->user()->id, $text));
         }
         if (preg_match('/^(?:remember (?:this|that)\b|I (?:parked|left|put|stored|bought|hired|liked|loved|preferred)\b)/iu', $text)
             && ! preg_match('/\b(?:if|maybe|suppose|hypothetically|might|would)\b/iu', $text)) {
+            return $this->store($request);
+        }
+        if (! preg_match('/\b(?:if|maybe|might|would|not|hypothetically)\b/iu', $text) && Ratings::extract($text, null)) {
             return $this->store($request);
         }
 
@@ -57,6 +66,7 @@ class MemoryController extends Controller
         $data = $this->validateMemory($request);
         $memory = DB::transaction(function () use ($request, $data) {
             $memory = $request->user()->memories()->create($data);
+            Ratings::capture($memory);
             IndexPassage::enqueue(['memory_id' => $memory->id], 'embed');
 
             return $memory;
@@ -68,6 +78,7 @@ class MemoryController extends Controller
     public function show(Request $request, string $memory)
     {
         return view('memory', [
+            'ratings' => DB::table('ratings')->where('memory_id', $memory)->get(),
             'memory' => $request->user()->memories()->findOrFail($memory),
         ]);
     }
@@ -78,6 +89,7 @@ class MemoryController extends Controller
         DB::transaction(function () use ($request, $memory, $data) {
             $entry = $request->user()->memories()->lockForUpdate()->findOrFail($memory);
             $entry->update($data);
+            Ratings::capture($entry);
             if ($entry->wasChanged('wording')) {
                 DB::table('inference_work')->where('memory_id', $memory)->delete();
                 IndexPassage::enqueue(['memory_id' => $memory], 'embed');
@@ -85,6 +97,35 @@ class MemoryController extends Controller
         });
 
         return redirect()->route('memories.show', $memory)->with('status', 'Saved');
+    }
+
+    public function identify(Request $request, int $message)
+    {
+        $data = $request->validate(['scope' => 'required|in:message,address,other', 'wording' => 'required|string|max:10000']);
+        $source = DB::table('mail_messages')->where('user_id', $request->user()->id)->where('id', $message);
+        $address = RatingSearch::address($source->firstOrFail()->sender);
+        if ($data['scope'] === 'address') {
+            abort_unless($address, 422);
+            DB::table('personal_addresses')->insertOrIgnore(['user_id' => $request->user()->id, 'address' => $address]);
+        } else {
+            $source->update(['authored_by_me' => $data['scope'] === 'message']);
+        }
+
+        return view('rating-results', (new RatingSearch)->ask($request->user()->id, $data['wording']) ?? abort(422));
+    }
+
+    public function identifyPerson(Request $request, string $memory)
+    {
+        $person = $request->validate(['person' => 'required|string|max:255'])['person'];
+        $entry = $request->user()->memories()->findOrFail($memory);
+        $subjects = DB::table('ratings')->where('memory_id', $entry->id)->distinct()->pluck('subject');
+        $subject = $request->validate(['subject' => 'nullable|string|max:10000'])['subject'] ?? ($subjects->count() === 1 ? $subjects->first() : null);
+        abort_if($subjects->isNotEmpty() && ! $subjects->containsStrict($subject), 422);
+        $entry->identified_subject = $subject;
+        $entry->identified_person = $person;
+        $entry->save();
+
+        return redirect()->route('memories.show', $memory);
     }
 
     private function validateMemory(Request $request): array

@@ -13,11 +13,11 @@ class Recall
     public function ask(int $owner, string $question): array
     {
         $sources = <<<'SQL'
-            select 'memory:' || id as key, wording, 'You' as author, created_at::date::text as date
+            select 'memory:' || id as key, wording, 'You' as author, created_at::date::text as date, identified_person
             from memories where user_id = ?
             union all
             select 'passage:' || id, wording,
-                case when quote_text is null then sender else 'Quoted history in message from ' || coalesce(sender,'unknown sender') end, sent_date
+                case when quote_text is null then sender else 'Quoted history in message from ' || coalesce(sender,'unknown sender') end, sent_date, null::text
             from (select distinct on (case when parent_identity is not null and quote_text is not null
                     then parent_identity || ':' || quote_text else id::text end) *
                   from mail_passage_sources where user_id = ? and source_id is null order by
@@ -28,7 +28,7 @@ class Recall
             terms as (select tsvector_to_array(to_tsvector('english', ?)) as words),
             matches as (select sources.*, strpos(lower(wording), lower(?)) > 0 as exact,
                 (select count(*) from unnest(terms.words) word
-                 where word = any(tsvector_to_array(to_tsvector('english', left(wording, 50000))))) as overlap
+                 where word = any(tsvector_to_array(to_tsvector('english', left(wording, 50000) || ' ' || coalesce(identified_person,''))))) as overlap
                 from sources cross join terms)
             select * from matches where exact or overlap > 0 order by exact desc, overlap desc, key limit 8",
             [$owner, $owner, $question, $question]);

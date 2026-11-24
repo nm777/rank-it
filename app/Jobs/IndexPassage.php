@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Inference\Budget;
 use App\Inference\Providers;
+use App\Inference\Ratings;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Http\Client\RequestException;
@@ -32,9 +33,12 @@ class IndexPassage implements ShouldQueue
             if (! $work || $work->call_id) {
                 return null;
             }
-            $work->contextOnly = $work->stage === 'indexed' && $work->context_changed;
+            $work->previousStage = $work->stage;
+            $work->contextOnly = in_array($work->stage, ['embed', 'indexed'], true) && $work->context_changed;
             if ($work->contextOnly) {
                 $work->stage = 'screen';
+            } else {
+                Ratings::process($work, $budget);
             }
             if (! in_array($work->stage, ['screen', 'embed'], true)) {
                 return null;
@@ -95,7 +99,10 @@ class IndexPassage implements ShouldQueue
             }
             if ($work->stage === 'screen') {
                 if ($work->contextOnly) {
-                    $updates['stage'] = 'indexed';
+                    DB::table('ratings')->where('passage_id', $current->passage_id)->delete();
+                    $updates['agreement'] = null;
+                    $updates['ratings_processed'] = $updates['stage'] === 'skipped';
+                    $updates['stage'] = $work->previousStage;
                 } elseif ($current->context_changed && ! $work->context_changed) {
                     $updates['stage'] = 'screen';
                 } else {
@@ -105,7 +112,7 @@ class IndexPassage implements ShouldQueue
             }
             $rescreen = $work->stage === 'embed' && $current->context_changed;
             $query->update($updates + ['call_id' => null, 'context_changed' => $rescreen]);
-            if ($rescreen || in_array($updates['stage'], ['embed', 'screen'])) {
+            if ($rescreen || ($updates['ratings_processed'] ?? true) === false || in_array($updates['stage'], ['embed', 'screen'])) {
                 self::dispatch($this->workId);
             }
         });

@@ -32,6 +32,8 @@ Ticket 04 verified that a paraphrased question can open highlighted evidence fro
 
 Ticket 06 completed multi-file import, collection controls, scoped rechecks and late-reply screening. A synthetic index rebuild paused under budget pressure, resumed from retained passages and switched queries only after replacement vectors were ready. Ticket 07 can proceed. [Complete import coverage and collection controls](issues/06-import-lifecycle.md)
 
+Ticket 07 verified current and historical rating searches, partial coverage, and personal attribution through linked replies. The synthetic route tests opened both cited passages and distinguished the date a score was given from the experience date. [Extract attributable ratings and resolve identities](issues/07-ratings-and-identity.md)
+
 ## Open questions
 
 [05 · Does screening save money while preserving useful evidence?](issues/05-mailbox-trial.md) has a reproducible synthetic comparison. The fixture traced one semantic miss to a scripted screening rejection and verified that the reply still opened through wording search. A real tester and live provider measurements are pending before deciding whether to revise the screening criteria.
