@@ -30,7 +30,7 @@ services:
     <<: *app
     command: php artisan serve --host=0.0.0.0 --no-reload
     ports:
-      - "127.0.0.1:8000:8000"
+      - "0.0.0.0:8000:8000"
   worker:
     <<: *app
     command: php artisan queue:work database --timeout=60 --tries=3
