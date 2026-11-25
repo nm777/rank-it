@@ -48,7 +48,10 @@ a { color: var(--accent); }
     text-decoration: none;
 }
 .brand img { border: 1px solid #f8edcf40; border-radius: .45rem; }
-.site-menu { position: relative; }
+.site-menu {
+    position: relative;
+    margin-inline-start: auto;
+}
 .site-menu > summary {
     display: grid;
     place-items: center;
@@ -68,7 +71,7 @@ a { color: var(--accent); }
     position: absolute;
     z-index: 1;
     top: 100%;
-    left: 0;
+    inset-inline-end: 0;
     min-width: 10rem;
     padding: .25rem;
     border: 1px solid var(--line);

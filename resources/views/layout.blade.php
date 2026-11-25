@@ -16,6 +16,10 @@
 </head>
 <body class="@yield('page-class')">
 <header>
+    <a class="brand" href="{{ route('memories.index') }}">
+        <img src="{{ asset('rank-it-180.png') }}" width="36" height="36" alt="">
+        Rank It
+    </a>
     @auth
         <details class="site-menu">
             <summary aria-label="Menu"><span aria-hidden="true"></span></summary>
@@ -75,10 +79,6 @@
             });
         </script>
     @endauth
-    <a class="brand" href="{{ route('memories.index') }}">
-        <img src="{{ asset('rank-it-180.png') }}" width="36" height="36" alt="">
-        Rank It
-    </a>
 </header>
 <main>
     @if ($errors->any())
