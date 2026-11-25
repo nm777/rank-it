@@ -23,6 +23,7 @@ class AccountControllerTest extends TestCase
     {
         $this->get('/profile')->assertRedirect('/login');
         $this->get('/profile/usage')->assertRedirect('/login');
+        $this->get('/profile/password')->assertRedirect('/login');
         $this->patch('/profile')->assertRedirect('/login');
         $this->put('/profile/password')->assertRedirect('/login');
     }
@@ -33,7 +34,51 @@ class AccountControllerTest extends TestCase
 
         $this->actingAs($user)->get('/profile')
             ->assertOk()->assertSee($user->name)->assertSee($user->email)
-            ->assertSee(route('profile.show'))->assertSee(route('profile.usage'));
+            ->assertSee(route('profile.show'))->assertSee(route('profile.usage'))
+            ->assertSee(route('profile.password.show'))->assertDontSee('name="password_confirmation"', false);
+    }
+
+    public function test_user_updates_name_without_a_password_when_email_is_unchanged(): void
+    {
+        $user = User::factory()->create(['email' => 'pat@example.com']);
+
+        $this->actingAs($user)->patch('/profile', [
+            'name' => 'Pat Example',
+            'email' => 'PAT@example.com',
+        ])->assertRedirect('/profile')->assertSessionHas('status', 'Profile updated.');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $user->id,
+            'name' => 'Pat Example',
+            'email' => 'pat@example.com',
+            'email_verified_at' => $user->email_verified_at,
+        ]);
+    }
+
+    public function test_email_change_requires_current_password(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->from('/profile')->patch('/profile', [
+            'name' => 'Pat Example',
+            'email' => 'new@example.com',
+        ])->assertRedirect('/profile')->assertSessionHasErrors(['current_password']);
+
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'name' => $user->name, 'email' => $user->email]);
+    }
+
+    public function test_email_change_rejects_an_incorrect_current_password(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->from('/profile')->patch('/profile', [
+            'name' => $user->name,
+            'email' => 'new@example.com',
+            'current_password' => 'incorrect password',
+        ])->assertRedirect('/profile')->assertSessionHasErrors(['current_password'])
+            ->assertSessionMissing('_old_input.current_password');
+
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'email' => $user->email]);
     }
 
     public function test_user_updates_name_and_email_with_current_password(): void
@@ -70,6 +115,16 @@ class AccountControllerTest extends TestCase
         $this->assertDatabaseHas('users', ['id' => $owner->id, 'name' => $owner->name, 'email' => $owner->email]);
     }
 
+    public function test_change_password_page_displays_the_password_form(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->get('/profile/password')->assertOk()
+            ->assertSee('name="current_password"', false)
+            ->assertSee('name="password"', false)
+            ->assertSee('name="password_confirmation"', false);
+    }
+
     public function test_user_changes_password_and_can_sign_in_with_it(): void
     {
         $user = User::factory()->create();
@@ -90,11 +145,11 @@ class AccountControllerTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $this->actingAs($user)->from('/profile')->put('/profile/password', [
+        $this->actingAs($user)->from('/profile/password')->put('/profile/password', [
             'current_password' => 'incorrect password',
             'password' => 'a new passphrase',
             'password_confirmation' => 'a different passphrase',
-        ])->assertRedirect('/profile')->assertSessionHasErrors(['current_password', 'password'])
+        ])->assertRedirect('/profile/password')->assertSessionHasErrors(['current_password', 'password'])
             ->assertSessionMissing('_old_input.current_password')->assertSessionMissing('_old_input.password');
 
         $this->assertDatabaseHas('users', ['id' => $user->id, 'password' => $user->password]);

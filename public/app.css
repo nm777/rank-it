@@ -154,6 +154,22 @@ textarea { resize: vertical; }
 button { padding: .6rem .9rem; border-radius: .45rem; border: 1px solid var(--accent); background: var(--accent); color: var(--button-text); cursor: pointer; }
 .secondary { background: transparent; color: var(--accent); }
 .actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+.profile-tabs {
+    display: flex;
+    gap: .6rem;
+    border-bottom: 1px solid var(--input-border);
+    margin-bottom: 1rem;
+}
+.profile-tabs a {
+    padding: .6rem .9rem;
+    border-bottom: 2px solid transparent;
+    text-decoration: none;
+}
+.profile-tabs a:hover { background: var(--blue-wash); }
+.profile-tabs a[aria-current="page"] {
+    border-bottom-color: var(--accent);
+    font-weight: 600;
+}
 details > label, details > form { margin-top: .7rem; }
 summary { cursor: pointer; width: fit-content; min-height: 44px; align-content: center; }
 section { margin-top: 2rem; }

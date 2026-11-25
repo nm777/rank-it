@@ -26,6 +26,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/memories/{memory}/person', [MemoryController::class, 'identifyPerson'])->whereUuid('memory')->name('memories.person');
     Route::get('/profile', [AccountController::class, 'profile'])->name('profile.show');
     Route::patch('/profile', [AccountController::class, 'updateProfile'])->middleware('throttle:10,1')->name('profile.update');
+    Route::get('/profile/password', [AccountController::class, 'showPasswordForm'])->name('profile.password.show');
     Route::put('/profile/password', [AccountController::class, 'updatePassword'])->middleware('throttle:10,1')->name('profile.password');
     Route::get('/profile/usage', [AccountController::class, 'usage'])->name('profile.usage');
     Route::post('/logout', [AccountController::class, 'logout'])->name('logout');

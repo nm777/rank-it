@@ -71,13 +71,15 @@ class AccountController extends Controller
     public function updateProfile(Request $request): RedirectResponse
     {
         $user = $request->user();
-        if (is_string($request->input('email'))) {
-            $request->merge(['email' => Str::lower($request->input('email'))]);
+        $email = $request->input('email');
+        $emailUnchanged = is_string($email) && Str::lower($email) === Str::lower($user->email);
+        if (is_string($email)) {
+            $request->merge(['email' => $emailUnchanged ? $user->email : Str::lower($email)]);
         }
         $profile = $request->validate([
             'name' => ['required', 'string', 'max:255', 'not_regex:/\x00/'],
             'email' => ['bail', 'required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user)],
-            'current_password' => ['bail', 'required', 'string', 'max:72', 'not_regex:/\x00/', 'current_password'],
+            'current_password' => [Rule::excludeIf($emailUnchanged), 'bail', 'required', 'string', 'max:72', 'not_regex:/\x00/', 'current_password'],
         ]);
 
         $user->fill(['name' => $profile['name'], 'email' => $profile['email']]);
@@ -91,6 +93,11 @@ class AccountController extends Controller
         }
 
         return redirect()->route('profile.show')->with('status', 'Profile updated.');
+    }
+
+    public function showPasswordForm(): View
+    {
+        return view('profile-password');
     }
 
     public function updatePassword(Request $request): RedirectResponse
