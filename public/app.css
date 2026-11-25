@@ -33,10 +33,10 @@ body > header {
     background: var(--navy);
 }
 /* Keep header controls below the iOS status bar's blur. */
-.ios-home-screen body > header { padding-block-start: 1.75rem; }
+.ios-home-screen body > header { padding-block-start: calc(.75rem + var(--header-gap, 16px)); }
 @media (display-mode: standalone) {
     @supports (-webkit-touch-callout: none) {
-        body > header { padding-block-start: 1.75rem; }
+        body > header { padding-block-start: calc(.75rem + var(--header-gap, 16px)); }
     }
 }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
@@ -99,6 +99,22 @@ a { color: var(--accent); }
     font-size: .875rem;
     text-align: start;
     text-decoration: none;
+}
+.header-gap-setting:not([hidden]) {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 0 .75rem;
+    padding: .35rem .7rem 0;
+    color: var(--ink);
+    font-size: .875rem;
+}
+.header-gap-setting input {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-height: 44px;
+    margin: 0;
+    accent-color: var(--accent);
 }
 .site-menu > summary:hover { background: var(--navy-hover); }
 .site-menu nav :is(a, button):hover { background: var(--blue-wash); }

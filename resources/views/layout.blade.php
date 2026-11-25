@@ -6,9 +6,31 @@
     <meta name="theme-color" content="#02274e">
     <title>@yield('title') · Rank It</title>
     <script>
-        if (navigator.standalone === true) {
-            document.documentElement.classList.add('ios-home-screen');
-        }
+        (() => {
+            if (navigator.standalone !== true
+                && !(CSS.supports('-webkit-touch-callout: none') && matchMedia('(display-mode: standalone)').matches)) {
+                return;
+            }
+
+            const root = document.documentElement;
+            root.classList.add('ios-home-screen');
+
+            document.addEventListener('DOMContentLoaded', () => {
+                const slider = document.querySelector('#header-gap');
+                if (!slider) {
+                    return;
+                }
+
+                const value = document.querySelector('#header-gap-value');
+                value.textContent = `${slider.value} px`;
+                slider.parentElement.hidden = false;
+
+                slider.addEventListener('input', () => {
+                    root.style.setProperty('--header-gap', `${slider.value}px`);
+                    value.textContent = `${slider.value} px`;
+                });
+            });
+        })();
     </script>
     <script src="{{ asset('theme.js') }}"></script>
     <link rel="stylesheet" href="{{ asset('app.css') }}?v={{ hash_file('sha256', public_path('app.css')) }}">
@@ -48,6 +70,11 @@
         <details class="site-menu">
             <summary aria-label="Menu"><span aria-hidden="true"></span></summary>
             <nav aria-label="Main navigation">
+                <div class="header-gap-setting" hidden>
+                    <label for="header-gap">Header gap</label>
+                    <span id="header-gap-value"></span>
+                    <input type="range" id="header-gap" min="0" max="24" value="16">
+                </div>
                 <a href="{{ route('memories.index') }}">Home</a>
                 <a href="{{ route('memories.browse') }}">Memories</a>
                 <a href="{{ route('imports.index') }}">Import</a>
