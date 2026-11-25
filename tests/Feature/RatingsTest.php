@@ -26,7 +26,9 @@ class RatingsTest extends TestCase
         $this->post('/input', ['wording' => 'Lemon cake is a nine.'])->assertRedirect();
         $this->post('/input', ['wording' => 'The temperature is 70.'])->assertViewIs('clarify');
         $this->post('/memories', ['wording' => 'John’s work is a 2 out of 5.', 'experience_date' => '2025']);
-        $old = $this->post('/memories', ['wording' => 'John’s work is a 5 out of 5.', 'experience_date' => '2024'])->headers->get('Location');
+        $wording = 'John’s work is a 5 out of 5.';
+        $this->post('/memories', ['wording' => $wording, 'experience_date' => '2024'])->assertRedirect('/');
+        $old = route('memories.show', auth()->user()->memories()->where('wording', $wording)->sole());
         $this->post('/input', ['wording' => 'Which did I rate at least 4/5?'])->assertSee('0 confirmed');
         $this->post('/input', ['wording' => 'Which did I ever rate at least 4/5?'])->assertSee('1 confirmed')->assertSee('John');
         $this->post('/input', ['wording' => 'Which experiences in 2024-03 had ratings?'])->assertSee('0 confirmed')->assertSee('Uncertain dates');
@@ -58,7 +60,7 @@ class RatingsTest extends TestCase
         config(['inference.cap' => 0]);
         $original();
         $question = ['wording' => 'What ratings did I ever give?'];
-        $this->post('/input', $question)->assertSee('processed portion');
+        $this->post('/input', $question + ['intent' => 'ask'])->assertSee('processed portion');
         config(['inference.cap' => 10000000]);
         $this->artisan('inference:resume');
         $this->artisan('queue:work database --stop-when-empty --sleep=0');
@@ -73,16 +75,16 @@ class RatingsTest extends TestCase
         }
         $mine = DB::table('mail_messages')->where('sender', 'mine@example.org')->value('id');
         $this->post("/messages/$mine/identity", $question + ['scope' => 'address'])->assertSee('3 confirmed');
-        $this->post('/input', ['wording' => 'Which ratings did I give in March 2026?'])->assertSee('3 confirmed');
-        $this->post('/input', ['wording' => 'Which experiences in February 2026 had my ratings?'])->assertSee('1 confirmed')->assertSee('Uncertain dates');
+        $this->post('/input', ['wording' => 'Which ratings did I give in March 2026?', 'intent' => 'ask'])->assertSee('3 confirmed');
+        $this->post('/input', ['wording' => 'Which experiences in February 2026 had my ratings?', 'intent' => 'ask'])->assertSee('1 confirmed')->assertSee('Uncertain dates');
         $this->assertNull(DB::table('mail_messages')->find($replies[1]->id)->authored_by_me);
         $parent = DB::table('mail_messages')->where('sender', 'maya@example.org')->value('id');
         $this->actingAs(User::factory()->create())->post("/messages/$mine/identity", $question + ['scope' => 'address'])->assertNotFound();
-        $this->post('/input', $question)->assertSee('0 confirmed')->assertDontSee('maya@example.org');
+        $this->post('/input', $question + ['intent' => 'ask'])->assertSee('0 confirmed')->assertDontSee('maya@example.org');
         $this->actingAs($owner)->delete("/messages/$parent")->assertRedirect();
-        $this->post('/input', $question)->assertSee('0 confirmed')->assertDontSee('Original score');
+        $this->post('/input', $question + ['intent' => 'ask'])->assertSee('0 confirmed')->assertDontSee('Original score');
         $original();
-        $this->post('/input', $question)->assertSee('3 confirmed');
+        $this->post('/input', $question + ['intent' => 'ask'])->assertSee('3 confirmed');
         $this->assertDatabaseCount('ratings', 2);
     }
 }

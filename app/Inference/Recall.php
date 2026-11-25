@@ -53,11 +53,13 @@ class Recall
             && ($call = $this->budget->reserve('answer', $estimate))) {
             try {
                 [$vector, $tokens] = $this->providers->embed($search);
+                AiOutput::record('Question embedding', ['dimensions' => count($vector), 'input_tokens' => $tokens]);
                 $this->budget->settle($call, $tokens * $this->providers->rate(), $tokens);
                 $semantic = DB::select("select key, wording, author, date, identified_person, experience_date, corrects_passage_id, version from ($indexed) hits
                     where (embedding <=> ?::vector) < 1 order by embedding <=> ?::vector, key limit 8",
                     [...$bindings, json_encode($vector), json_encode($vector)]);
-            } catch (HttpClientException|\UnexpectedValueException) {
+            } catch (HttpClientException|\UnexpectedValueException $error) {
+                AiOutput::record('Question embedding', AiOutput::failure($error));
                 // Keep uncertain charges reserved and continue with wording matches.
             }
         }
@@ -99,11 +101,23 @@ class Recall
         }
         $results = $selected;
         $answer = $results ? $this->answer($question, $results, $context) : null;
+        if (! $results) {
+            AiOutput::record('Answer model', ['status' => 'Skipped because search found no matching passages']);
+        }
 
-        return compact('results', 'answer', 'question');
+        $answerAvailable = $answer !== null || (! $results && $this->answerAvailable());
+
+        return compact('results', 'answer', 'question', 'answerAvailable');
     }
 
-    private function answer(string $question, array $results, array $context): ?array
+    public function answerAvailable(): bool
+    {
+        $cost = $this->answerCost();
+
+        return $cost !== null && $this->budget->canAffordAnswer($cost);
+    }
+
+    private function answerCost(): ?int
     {
         $config = config('inference.answer');
         foreach (['input_rate', 'output_rate', 'max_input', 'max_output'] as $field) {
@@ -114,13 +128,22 @@ class Recall
         if (! $config['endpoint'] || ! $config['model'] || ! $config['max_input'] || ! $config['max_output']) {
             return null;
         }
+        return $config['input_rate'] * $config['max_input'] + $config['output_rate'] * $config['max_output'];
+    }
+
+    private function answer(string $question, array $results, array $context): ?array
+    {
+        $cost = $this->answerCost();
+        if ($cost === null || ! ($call = $this->budget->reserve('answer', $cost))) {
+            AiOutput::record('Answer model', ['status' => $cost === null ? 'Unavailable configuration' : 'Skipped because of the inference budget']);
+
+            return null;
+        }
+
+        $config = config('inference.answer');
         $passages = [];
         foreach ($results as $key => $source) {
             $passages[$key] = ['wording' => mb_substr($source->wording, 0, 4000), 'author' => $source->author, 'date' => $source->date, 'experience' => $source->experience_date, 'person' => $source->identified_person, 'corrects' => $source->corrects_passage_id ? 'passage:'.$source->corrects_passage_id : null];
-        }
-        $estimate = $config['input_rate'] * $config['max_input'] + $config['output_rate'] * $config['max_output'];
-        if (! ($call = $this->budget->reserve('answer', $estimate))) {
-            return null;
         }
         try {
             $http = Http::withoutRedirecting()->timeout(25);
@@ -135,13 +158,14 @@ class Recall
                     ['role' => 'user', 'content' => json_encode(compact('question', 'passages', 'context'), JSON_THROW_ON_ERROR)],
                 ],
             ])->throw()->json();
+            $content = data_get($payload, 'choices.0.message.content');
+            AiOutput::record('Answer model', ['output' => $content, 'usage' => data_get($payload, 'usage')]);
             $input = data_get($payload, 'usage.prompt_tokens');
             $output = data_get($payload, 'usage.completion_tokens');
             if (! is_int($input) || ! is_int($output) || min($input, $output) < 0) {
                 return null;
             }
             $this->budget->settle($call, $input * $config['input_rate'] + $output * $config['output_rate'], $input);
-            $content = data_get($payload, 'choices.0.message.content');
             $draft = is_string($content) ? json_decode($content, true) : null;
             if (! is_array($draft['claims'] ?? null) || ! is_bool($draft['partial'] ?? null)) {
                 return null;
@@ -189,7 +213,8 @@ class Recall
             $confirmedCount = in_array(null, $matchesFound, true) ? null : count(array_unique($matchesFound));
 
             return compact('claims', 'partial', 'missing', 'conflict', 'uncertain', 'clarification', 'confirmedCount');
-        } catch (HttpClientException) {
+        } catch (HttpClientException $error) {
+            AiOutput::record('Answer model', AiOutput::failure($error));
             return null;
         }
     }

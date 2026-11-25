@@ -6,6 +6,13 @@ use Illuminate\Support\Facades\DB;
 
 class Budget
 {
+    public function canAffordAnswer(int $amount): bool
+    {
+        $used = DB::table('inference_budget')->where('id', 1)->value('committed');
+
+        return $amount <= (int) config('inference.cap') - $used;
+    }
+
     public function reserve(string $purpose, int $amount): ?int
     {
         throw_if($amount < 0, \InvalidArgumentException::class);
@@ -14,7 +21,7 @@ class Budget
             $budget = DB::table('inference_budget')->where('id', 1);
             $used = $budget->lockForUpdate()->first()->committed;
             $limit = (int) config('inference.cap');
-            if ($purpose !== 'answer') {
+            if (! in_array($purpose, ['answer', 'intent'], true)) {
                 $limit -= max(0, (int) config('inference.reserve'));
             }
             if ($amount > $limit - $used) {

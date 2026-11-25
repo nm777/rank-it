@@ -2,11 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Inference\AiOutput;
+use App\Inference\Budget;
 use App\Inference\Conversation;
+use App\Inference\Providers;
 use App\Inference\Ratings;
 use App\Inference\RatingSearch;
 use App\Inference\Recall;
 use App\Jobs\IndexPassage;
+use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -16,24 +20,51 @@ class MemoryController extends Controller
     {
         return view('memories', [
             'results' => $request->user()->memories()->latest()->orderByDesc('id')->limit(10)->get(),
+            'savedMemory' => $request->session()->has('saved_memory_id')
+                ? $request->user()->memories()->find($request->session()->get('saved_memory_id'))
+                : null,
         ]);
     }
 
-    public function input(Request $request, Recall $recall, Conversation $conversation)
+    public function input(Request $request, Recall $recall, Conversation $conversation, Providers $providers, Budget $budget)
     {
         $data = $this->validateMemory($request);
         $choice = $request->validate(['intent' => ['nullable', 'in:ask,save']])['intent'] ?? null;
         $text = trim($data['wording']);
-        if ($request->boolean('followup') && preg_match('/^(?:please )?(?:remember (?:this|that)|save (?:this|that)(?: fact)?)[:,]?\s+(.+)$/isu', $text, $explicit)) {
+        if ($request->boolean('followup') && ! $request->boolean('replay') && preg_match('/^(?:please )?(?:remember (?:this|that)|save (?:this|that)(?: fact)?)[:,]?\s+(.+)$/isu', $text, $explicit)) {
             $request->merge(['wording' => trim($explicit[1])]);
 
             return $this->store($request);
         }
+        if ($choice === null && (str_ends_with($text, '?')
+            || preg_match('/^(?:who|what|when|where|why|how|which|did|does|can|could|would|should)\b/iu', $text))) {
+            $choice = 'ask';
+            AiOutput::record('Routing', ['decision' => 'ask', 'reason' => 'Recognized as a question']);
+        }
+        if ($choice === null && ($estimate = $providers->estimate('intent')) !== null) {
+            if ($call = $budget->reserve('intent', $estimate)) {
+                try {
+                    [$choice, $tokens, $scores] = $providers->classifyIntent($text);
+                    AiOutput::record('Jev intent', ['decision' => $choice ?? 'clarify', 'scores' => $scores, 'input_tokens' => $tokens]);
+                    $budget->settle($call, $tokens * Providers::JEV_RATE, $tokens);
+                    if ($choice === null) {
+                        return view('clarify', $data + ['routingUnavailable' => false]);
+                    }
+                } catch (HttpClientException|\UnexpectedValueException $error) {
+                    AiOutput::record('Jev intent', AiOutput::failure($error));
+                    // Keep the reservation for reconciliation if the provider may have charged.
+                }
+            } else {
+                AiOutput::record('Jev intent', ['status' => 'Skipped because of the inference budget']);
+            }
+            if ($choice === null) {
+                return view('clarify', $data + ['routingUnavailable' => true]);
+            }
+        }
         if ($choice === 'save') {
             return $this->store($request);
         }
-        if ($choice === 'ask' || str_contains($text, '?')
-            || preg_match('/^(?:who|what|when|where|why|how|which|did|does|can|could|would|should|suppose|imagine|if)\b/iu', $text)) {
+        if ($choice === 'ask' || preg_match('/^(?:suppose|imagine|if)\b/iu', $text)) {
             $followup = $request->boolean('followup');
             if (! $followup) {
                 $conversation->reset();
@@ -42,7 +73,7 @@ class MemoryController extends Controller
             $dismissed = array_keys($conversation->current()['dismissed']);
             $search = implode("\n", [...$context, $text]);
             if ($ratings = (new RatingSearch)->ask($request->user()->id, $search)) {
-                return $this->ratingAnswer($ratings, $text, $conversation);
+                return $this->ratingAnswer($ratings, $text, $conversation)->with(['experienceDate' => $data['experience_date'], 'replayWording' => $data['wording']]);
             }
             $response = $recall->ask($request->user()->id, $text, $context, $dismissed, $previous);
             $answer = $response['answer'];
@@ -58,7 +89,7 @@ class MemoryController extends Controller
             }
             $turn = $conversation->remember($text, $versions);
 
-            return view('recall', $response + compact('turn'));
+            return view('recall', $response + compact('turn'))->with(['experienceDate' => $data['experience_date'], 'replayWording' => $data['wording']]);
         }
         if (preg_match('/^(?:remember (?:this|that)\b|I (?:parked|left|put|stored|bought|hired|liked|loved|preferred)\b)/iu', $text)
             && ! preg_match('/\b(?:if|maybe|suppose|hypothetically|might|would)\b/iu', $text)) {
@@ -68,7 +99,7 @@ class MemoryController extends Controller
             return $this->store($request);
         }
 
-        return view('clarify', $data);
+        return view('clarify', $data + ['routingUnavailable' => true]);
     }
 
     public function search(Request $request)
@@ -90,7 +121,7 @@ class MemoryController extends Controller
     public function store(Request $request)
     {
         $data = $this->validateMemory($request);
-        $memory = DB::transaction(function () use ($request, $data) {
+        $id = DB::transaction(function () use ($request, $data) {
             $memory = $request->user()->memories()->make($data);
             if ($request->route('passage') !== null) {
                 $source = DB::table('mail_passages')->join('mail_messages', 'mail_messages.id', '=', 'mail_passages.message_id')
@@ -102,10 +133,11 @@ class MemoryController extends Controller
             Ratings::capture($memory);
             IndexPassage::enqueue(['memory_id' => $memory->id], 'embed');
 
-            return $memory;
+            return $memory->id;
         });
 
-        return redirect()->route('memories.show', $memory)->with('status', 'Saved')->with('evidence_changed', true);
+        return redirect()->route('memories.index')->with('status', 'Saved')->with('evidence_changed', true)
+            ->with('ai_output', AiOutput::current())->with('saved_memory_id', $id);
     }
 
     public function show(Request $request, string $memory)

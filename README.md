@@ -18,9 +18,9 @@ docker compose up -d
 docker compose exec web php artisan pilot:invite tester@example.test
 ```
 
-Open the printed link and create the account. Invitations expire after seven days, work once, and are replaced by issuing a new invitation for the same address. Use the same email and password in another browser to open the account's recent memories. The experience date accepts a year, month, or day, and can be left blank. The keyboard microphone enters editable text in the regular input.
+Open the printed link and create the account. Invitations expire after seven days, work once, and are replaced by issuing a new invitation for the same address. Use the same email and password in another browser to open the account's recent memories. When editing a saved memory, its experience date accepts a year, month, or day and can be left blank. The keyboard microphone enters editable text in the regular input.
 
-The web and worker mount the same private `import-staging` volume. The worker uses PostgreSQL's `jobs` table. Capture commits directly to PostgreSQL and can be read while the worker is stopped. `Find wording` searches saved text in the signed-in account.
+The web and worker mount the same private `import-staging` volume. The worker uses PostgreSQL's `jobs` table. Capture commits directly to PostgreSQL and can be read while the worker is stopped.
 
 For a native run, use PHP 8.2 or later with `pdo_pgsql`, `zip` and Composer. Provide a PostgreSQL database with pgvector available to the migration role, configure `.env`, and run `composer install`, `php artisan key:generate` and `php artisan migrate`. Start `php artisan serve` and `php artisan queue:work database --timeout=60 --tries=3` from the same checkout. Set `IMPORT_STAGING_PATH` to the same writable private directory for both processes if they run from separate checkouts.
 
@@ -58,6 +58,6 @@ To change embedding models, leave the active profile configured and set the inac
 
 ## Cited recall
 
-The shared input answers questions, saves recognizable captures and asks for a choice when intent is unclear. Find wording remains available for literal searches. Recall ranks wording matches and compatible pgvector matches within the signed-in collection and sends up to six selected excerpts to the answer endpoint. The answer view accepts only verbatim excerpts with a matching source key. Opening one shows the source passage in context.
+Clear questions go directly to recall. With `TYPESAFE_API_KEY` set, Jev classifies the remaining shared input. In the local environment, expand **AI output** to inspect the routing decision, model output, or request failure. These interactive calls share the answer budget. It asks for a choice when Jev is unsure or unavailable. Without a key, it uses local rules for recognizable captures and questions. Recall ranks wording matches and compatible pgvector matches within the signed-in collection and sends up to six selected excerpts to the answer endpoint. The answer view accepts only verbatim excerpts with a matching source key. Opening one shows the source passage in context.
 
 Configure a chat-completions-compatible endpoint with `ANSWER_ENDPOINT`, `ANSWER_MODEL`, and optionally `ANSWER_API_KEY`. Set `ANSWER_MAX_INPUT_TOKENS` to the endpoint's enforced maximum billable prompt size, and `ANSWER_MAX_OUTPUT_TOKENS` to the requested output limit. Set `ANSWER_NANOUSD_PER_INPUT_TOKEN` and `ANSWER_NANOUSD_PER_OUTPUT_TOKEN` to the applicable billing rates. The endpoint must support JSON responses and report prompt and completion tokens. Question embedding and generation each reserve their maximum cost against the shared cap before sending. Unavailable inference leaves available wording matches accessible. Uncertain calls retain their reservations for reconciliation.

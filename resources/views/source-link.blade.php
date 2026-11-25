@@ -9,8 +9,10 @@
     }
     $url = route($type === 'memory' ? 'memories.show' : 'passages.show', $params).'#'.$anchor;
 @endphp
+<div class="evidence-source">
 <a data-source="{{ $source->key }}" href="{{ $url }}">Open passage</a>
 <small>{{ $source->author ?: 'Unknown author' }} · {{ $source->date ?: 'Unknown date' }}</small>
 @if ($type === 'memory' && preg_match('/^I mean\s+(.+?)\.?$/iu', $question, $person))
 <a href="{{ route('memories.show', ['memory' => $id, 'person' => Str::limit($person[1], 255, '')]) }}#identify-person">Save this identity for this memory</a>
 @endif
+</div>

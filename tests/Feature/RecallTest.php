@@ -77,12 +77,13 @@ class RecallTest extends TestCase
 
     public function test_shared_input_requires_confirmation_and_cap_preserves_literal_citation(): void
     {
-        config(['inference.cap' => 0]);
+        config(['inference.cap' => 0, 'inference.jev_key' => null]);
         $this->actingAs(User::factory()->create())->post('/input', ['wording' => 'Locker B-17'])
-            ->assertSee('Save this as a memory or ask about it?');
-        $this->post('/input', ['wording' => 'If I rented B-17'])->assertSee('no matching passages');
+            ->assertSee('Save this as a memory or ask about it?')->assertSee('AI assistance for choosing an action is currently unavailable');
+        $this->post('/input', ['wording' => 'If I rented B-17'])->assertSee('no matching passages')->assertSee('Answer generation is unavailable');
         $this->assertDatabaseCount('memories', 0);
-        $url = $this->post('/input', ['wording' => 'Locker B-17', 'intent' => 'save'])->assertRedirect()->headers->get('Location');
+        $this->post('/input', ['wording' => 'Locker B-17', 'intent' => 'save'])->assertRedirect('/');
+        $url = route('memories.show', auth()->user()->memories()->sole());
         $this->post('/input', ['wording' => 'I parked upstairs.'])->assertRedirect();
         $this->post('/input', ['wording' => 'Where is locker B-17?'])->assertSee('Answer generation is unavailable')
             ->assertSee('Search results')->assertSee($url.'?highlight=1#passage');
@@ -91,9 +92,62 @@ class RecallTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_jev_routes_implicit_input_and_offers_a_choice_on_uncertainty_or_failure(): void
+    {
+        $scores = static fn ($save, $ask) => ['answers' => ['save' => ['noul' => $save], 'ask' => ['noul' => $ask]],
+            'usage' => ['input_tokens' => 10]];
+        Http::fake(['https://api.typesafe.ai/v1/systemone' => Http::sequence()
+            ->push($scores(0.95, 0.05))
+            ->push($scores(0.5, 0.5))
+            ->pushStatus(503)]);
+
+        config(['app.env' => 'local']);
+        $owner = User::factory()->create();
+        $this->actingAs($owner)->post('/input', ['wording' => 'What dessert should I bring to Thanksgiving dinner?'])
+            ->assertViewIs('recall')->assertSee('Recognized as a question')->assertSee('<summary>AI output</summary>', false);
+        Http::assertNothingSent();
+        $this->post('/input', ['wording' => 'The spare bulb is in the shed.'])->assertRedirect('/');
+        $this->get('/')->assertSee('Jev intent')->assertSee('0.95');
+        $this->post('/input', ['wording' => 'Toolbox'])->assertViewIs('clarify')
+            ->assertSee('couldn’t tell')->assertDontSee('currently unavailable');
+        $this->post('/input', ['wording' => 'The toolbox is red.'])->assertViewIs('clarify')
+            ->assertSee('currently unavailable');
+        $this->assertDatabaseCount('memories', 1);
+        $this->post('/input', ['wording' => 'The toolbox is red.', 'intent' => 'save'])->assertRedirect('/');
+        $this->assertDatabaseCount('memories', 2);
+        Http::assertSentCount(3);
+        $this->assertSame(2, DB::table('inference_calls')->where('purpose', 'intent')->where('actual', 420)->count());
+    }
+
+    public function test_replay_can_switch_between_memory_and_question_with_edited_wording(): void
+    {
+        config(['inference.cap' => 0]);
+        $owner = User::factory()->create();
+        $wording = 'I parked in B-17.';
+        $this->actingAs($owner)->post('/input', [
+            'wording' => $wording, 'experience_date' => '2025-02', 'intent' => 'save',
+        ])->assertRedirect('/');
+        $this->get('/')->assertSee('Replay input')->assertSee('name="experience_date" value="2025-02"', false)
+            ->assertSee('replay-wording');
+
+        $question = 'Where did I park in B-17?';
+        $this->post('/input', [
+            'wording' => $question, 'experience_date' => '2025-02', 'intent' => 'ask', 'replay' => 1,
+        ])->assertViewIs('recall')->assertSee('Edit & replay')->assertSee($question)
+            ->assertSee('name="experience_date" value="2025-02"', false);
+        $this->assertSame($wording, $owner->memories()->sole()->wording);
+
+        $this->post('/input', [
+            'wording' => $question, 'experience_date' => '2025-02', 'intent' => 'save', 'replay' => 1,
+        ])->assertRedirect('/');
+        $this->assertDatabaseHas('memories', ['user_id' => $owner->id, 'wording' => $question, 'experience_date' => '2025-02']);
+        Http::assertNothingSent();
+    }
+
     public function test_partial_answer_highlights_only_the_supported_words_and_names_the_gap(): void
     {
         $owner = User::factory()->create();
+        config(['app.env' => 'local']);
         $wording = 'After lunch I parked in space 42 on level five.';
         $this->actingAs($owner)->post('/input', ['wording' => $wording, 'intent' => 'save']);
         $id = $owner->memories()->sole()->id;
@@ -103,8 +157,9 @@ class RecallTest extends TestCase
         ])]]], 'usage' => ['prompt_tokens' => 12, 'completion_tokens' => 8]])]);
         $link = route('memories.show', ['memory' => $id, 'highlight' => 1,
             'start' => mb_strpos($wording, 'space 42'), 'length' => mb_strlen('space 42 on level five')]).'#evidence';
-        $this->post('/input', ['wording' => 'Which parking space and meter expiration?'])
-            ->assertSee('Missing evidence for “meter expiration”')->assertSee($link);
+        $this->post('/input', ['wording' => 'Which parking space and meter expiration?', 'intent' => 'ask'])
+            ->assertSee('Missing evidence for “meter expiration”')->assertSee($link)
+            ->assertSee('Answer model')->assertSee('completion_tokens');
         $this->get($link)->assertSee('After lunch I parked in <mark id="evidence">space 42 on level five</mark>.', false);
     }
 
@@ -113,9 +168,11 @@ class RecallTest extends TestCase
         Http::fake(['embedding.test/*' => Http::sequence()
             ->push(['data' => [['embedding' => [1, 0]]], 'usage' => ['prompt_tokens' => 2]])->pushStatus(503),
             'answer.test/*' => Http::response([], 503)]);
-        $url = $this->actingAs(User::factory()->create())->post('/memories', ['wording' => 'Blue locker'])->headers->get('Location');
+        $owner = User::factory()->create();
+        $this->actingAs($owner)->post('/memories', ['wording' => 'Blue locker'])->assertRedirect('/');
+        $url = route('memories.show', $owner->memories()->sole());
         $this->artisan('queue:work database --stop-when-empty --sleep=0')->assertSuccessful();
-        $this->post('/input', ['wording' => 'Which locker?'])->assertSee('Search results')
+        $this->post('/input', ['wording' => 'Which locker?', 'intent' => 'ask'])->assertSee('Search results')
             ->assertSee('Answer generation is unavailable')->assertSee($url.'?highlight=1#passage');
         Http::assertSentCount(3);
         $this->assertSame(2, DB::table('inference_calls')->where('purpose', 'answer')->whereNull('actual')->count());

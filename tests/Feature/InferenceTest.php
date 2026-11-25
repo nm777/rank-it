@@ -88,8 +88,9 @@ class InferenceTest extends TestCase
         Http::fake(['embedding.test/*' => Http::response([
             'data' => [['embedding' => [1, 0]]], 'usage' => ['prompt_tokens' => 3],
         ])]);
-        $url = $this->actingAs(User::factory()->create())->post('/memories', ['wording' => 'Original fixture'])
-            ->assertRedirect()->headers->get('Location');
+        $owner = User::factory()->create();
+        $this->actingAs($owner)->post('/memories', ['wording' => 'Original fixture'])->assertRedirect('/');
+        $url = route('memories.show', $owner->memories()->sole());
         $this->patch($url, ['wording' => 'Corrected fixture'])->assertRedirect();
         $this->artisan('queue:work database --stop-when-empty --sleep=0')->assertSuccessful();
         Http::assertNothingSent();

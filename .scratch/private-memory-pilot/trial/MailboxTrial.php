@@ -58,6 +58,16 @@ class MailboxTrial extends TestCase
             switch ($request->url()) {
                 case 'https://api.typesafe.ai/v1/systemone':
                     $state = $request['state'];
+                    if (isset($request['questions']['ask'])) {
+                        [$save, $ask] = match ($state['wording']) {
+                            'Locker B-17' => [0.5, 0.5],
+                            'I parked upstairs.' => [0.95, 0.05],
+                            default => [0.05, 0.95],
+                        };
+
+                        return Http::response(['answers' => ['save' => ['noul' => $save], 'ask' => ['noul' => $ask]],
+                            'usage' => ['input_tokens' => 4]]);
+                    }
                     $screens[$state['new_wording']] = $state['context'];
 
                     return Http::response(['answers' => ['remember' => ['noul' => $state['new_wording'] === self::KEY ? 0.9 : 0.1]],
@@ -154,7 +164,7 @@ class MailboxTrial extends TestCase
         $ledger = DB::table('inference_calls')->selectRaw('purpose, count(*) as calls, sum(actual) as nanousd')
             ->groupBy('purpose')->orderBy('purpose')->get()->keyBy('purpose');
         $this->assertDatabaseMissing('inference_calls', ['actual' => null]);
-        $this->assertSame($screened ? 2084 : 2160, (int) $ledger->sum('nanousd'));
+        $this->assertSame($screened ? 2420 : 2496, (int) $ledger->sum('nanousd'));
         fwrite(STDOUT, json_encode([
             'arm' => $screened ? 'screened' : 'unscreened', 'local_import_ms' => $importMs,
             'stages' => $stages, 'screen_context' => $screens, 'questions' => $outcomes, 'simulated_ledger' => $ledger,

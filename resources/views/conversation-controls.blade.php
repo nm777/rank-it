@@ -23,7 +23,10 @@
                 }
             }
             if (sequence !== current || status === 'current') return;
-            if (status !== 'edited') answer.replaceChildren();
+            if (status !== 'edited') {
+                answer.replaceChildren();
+                document.querySelector('.ai-output')?.remove();
+            }
             document.querySelector('#evidence-status').textContent = {edited: 'Supporting memory edited', deleted: 'A supporting memory was deleted', expired: 'Conversation ended'}[status];
             document.querySelector('#ask-again').hidden = status === 'expired';
         } catch {}
@@ -35,8 +38,13 @@
 })();
 </script>
 @endif
-<form method="post" action="{{ route('memories.input') }}" class="stack">@csrf
-<input type="hidden" name="followup" value="1">
-<label>Follow up <textarea name="wording" required maxlength="10000"></textarea></label>
-<button name="intent" value="ask">Ask my memory</button><button name="intent" value="save">Save as a memory</button></form>
-<form method="post" action="{{ route('conversation.new') }}">@csrf<button>New conversation</button></form>
+<form method="post" action="{{ route('memories.input') }}" class="followup-composer stack">
+    @csrf
+    <input type="hidden" name="followup" value="1">
+    <label for="followup-wording">Follow up</label>
+    <textarea id="followup-wording" name="wording" rows="2" required maxlength="10000"></textarea>
+    <div class="followup-actions">
+        <button name="intent" value="ask">Ask</button>
+        <button class="text-action" name="intent" value="save">Save as a memory</button>
+    </div>
+</form>

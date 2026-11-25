@@ -1,20 +1,19 @@
 @extends('layout')
 @section('title', 'Ratings')
 @section('content')
-<a href="{{ route('memories.index') }}">My memories</a>
-<section id="answer">
-<h1>{{ $question }}</h1>
+@include('question-header')
+<section id="answer" class="answer-results" aria-label="Answer">
 <p>{{ count($confirmed) }} confirmed {{ Str::plural('rating', count($confirmed)) }} found.</p>
 @if ($partial)<p>Ratings cover only the processed portion of your imports.</p>@endif
 @foreach ([$confirmed, $uncertain] as $rows)
 @if ($loop->last && $rows)<h2>Uncertain dates</h2><p>These ratings are excluded from the confirmed count.</p>@endif
 @foreach ($rows as $row)
-<article>{{ $row->identified_person ?? $row->subject }} {{ $row->aspect }} · {{ $row->score }}{{ $row->scale !== null ? '/'.$row->scale : ' (scale unknown)' }}
- · {{ $row->mine ? 'You' : ($row->sender ?: 'Unknown author') }} · Rated {{ $row->created_at ?? $row->sent_date ?? 'date unknown' }} · Experience {{ $row->experience ?? 'date unknown' }}
+<article><p class="answer-wording">{{ $row->identified_person ?? $row->subject }} {{ $row->aspect }} · {{ $row->score }}{{ $row->scale !== null ? '/'.$row->scale : ' (scale unknown)' }}
+ · {{ $row->mine ? 'You' : ($row->sender ?: 'Unknown author') }} · Rated {{ $row->created_at ?? $row->sent_date ?? 'date unknown' }} · Experience {{ $row->experience ?? 'date unknown' }}</p><div class="evidence-actions">
 @if ($row->memory_id)<a href="{{ route('memories.show', [$row->memory_id, 'highlight' => 1]) }}#passage">Original wording</a>
 @else<a href="{{ route('passages.show', $row->passage_id) }}#passage-{{ $row->passage_id }}">Original score</a>
 @if ($row->reply)<a href="{{ route('passages.show', $row->reply) }}#passage-{{ $row->reply }}">Agreement</a>@endif
-@endif @include('dismiss-source', ['key' => $row->memory_id ? 'memory:'.$row->memory_id : 'passage:'.$row->passage_id])</article>
+@endif @include('dismiss-source', ['key' => $row->memory_id ? 'memory:'.$row->memory_id : 'passage:'.$row->passage_id])</div></article>
 @endforeach
 @endforeach
 @foreach ($identities as $row)

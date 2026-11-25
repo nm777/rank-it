@@ -102,7 +102,8 @@ class ConversationTest extends TestCase
         $this->artisan('queue:work database --stop-when-empty --sleep=0')->assertSuccessful();
         $passage = DB::table('mail_passages')->where('wording', 'The key is in B-17.')->sole();
         $this->actingAs(User::factory()->create())->post("/passages/$passage->id/correct", ['wording' => 'foreign'])->assertNotFound();
-        $url = $this->actingAs($owner)->post("/passages/$passage->id/correct", ['wording' => 'The key is in C-12 now.'])->assertRedirect()->headers->get('Location');
+        $this->actingAs($owner)->post("/passages/$passage->id/correct", ['wording' => 'The key is in C-12 now.'])->assertRedirect('/');
+        $url = route('memories.show', $owner->memories()->sole());
         $this->get($url)->assertSee(route('passages.show', $passage->id));
         $this->get("/passages/$passage->id")->assertSee('The key is in B-17.');
         $turn = $this->post('/input', ['wording' => 'Where is the key?'])->assertSee('C-12')->assertSee('B-17')->viewData('turn');

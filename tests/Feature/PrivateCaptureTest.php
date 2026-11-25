@@ -59,19 +59,21 @@ class PrivateCaptureTest extends TestCase
         $wording = "  Synthetic key B-17.\nStore it in the top drawer.  ";
 
         config(['queue.default' => 'database']);
-        $response = $this->actingAs($owner)->post('/memories', [
+        $this->actingAs($owner)->post('/memories', [
             'wording' => $wording,
             'experience_date' => '2025-02',
             'user_id' => $other->id,
-        ])->assertRedirect()->assertSessionHas('status', 'Saved');
+        ])->assertRedirect('/')->assertSessionHas('status', 'Saved');
 
         $memory = $owner->memories()->sole();
-        $url = $response->headers->get('Location');
+        $url = route('memories.show', $memory);
         $this->assertSame($wording, $memory->wording);
         $this->assertSame('2025-02', $memory->experience_date);
         $captureDate = $memory->created_at->toDateString();
 
-        $this->get($url)->assertOk()->assertSee('Saved')->assertSee($wording)->assertSee('2025-02');
+        $this->get('/')->assertOk()->assertSee('Saved')->assertSee($url)
+            ->assertSee("autofocus", false);
+        $this->get($url)->assertOk()->assertSee($wording)->assertSee('2025-02');
         $this->post('/logout');
         $this->post('/login', ['email' => strtoupper($owner->email), 'password' => 'password'])
             ->assertRedirect('/');

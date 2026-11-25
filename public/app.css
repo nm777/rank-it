@@ -29,3 +29,84 @@ article { border-top: 1px solid #d4d9d4; padding: .7rem 0; overflow-wrap: anywhe
 small { display: block; }
 .wording { white-space: pre-wrap; overflow-wrap: anywhere; }
 .errors { color: #8c281d; }
+
+.ai-output { margin-top: 2rem; }
+.ai-output summary { cursor: pointer; }
+.ai-output pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.question-navigation, .followup-actions, .evidence-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .25rem 1rem;
+}
+.question-navigation a, .text-action {
+    font-size: .875rem;
+    color: #245640;
+}
+.question-navigation a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+}
+.text-action {
+    min-height: 44px;
+    padding: .25rem 0;
+    border: 0;
+    background: transparent;
+    text-decoration: underline;
+    text-underline-offset: .18em;
+}
+.question-heading {
+    margin: 1rem 0;
+    padding: .85rem 1rem .35rem;
+    border-radius: .75rem;
+    background: #edf0e9;
+}
+.question-heading h1 {
+    margin: 0;
+    font-size: clamp(1.15rem, 4vw, 1.45rem);
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+.replay-input summary, .ai-output summary {
+    color: #245640;
+    font-size: .875rem;
+}
+.question-heading .replay-input[open] { padding-bottom: .65rem; }
+.answer-results { margin-top: 1rem; }
+.answer-results article {
+    border: 1px solid #dce2d9;
+    border-radius: .75rem;
+    padding: 1rem;
+    background: #fff;
+}
+.answer-results article + article { margin-top: .65rem; }
+.answer-wording { margin: 0 0 .55rem; font-size: 1.08rem; }
+.evidence-actions { gap: .25rem .75rem; }
+.evidence-source { font-size: .875rem; }
+.evidence-source small, .answer-note { color: #4e5e54; }
+.answer-note { font-size: .925rem; }
+.followup-composer {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid #dce2d9;
+    gap: .4rem;
+}
+.followup-composer label { font-weight: 650; }
+.followup-actions { justify-content: flex-start; gap: .35rem 1rem; }
+.followup-actions button:first-child { min-width: 5.5rem; }
+#evidence-status:empty { display: none; }
+.ai-output { margin-top: .65rem; }
+
+.memory-entry header { padding-block: .35rem; }
+.memory-entry header button { font-size: .875rem; padding: .35rem .7rem; min-height: 44px; }
+.memory-entry main { padding-top: .35rem; }
+.entry-form { gap: .4rem; }
+.entry-form textarea { padding: .55rem .7rem; }
+.entry-form button { min-height: 44px; padding-block: .4rem; }
+
+@media (max-width: 40rem) and (orientation: portrait) {
+    .entry-form > button { width: 100%; }
+}
