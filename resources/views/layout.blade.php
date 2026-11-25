@@ -3,9 +3,11 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#02274e">
     <title>@yield('title') · Rank It</title>
     <link rel="stylesheet" href="{{ asset('app.css') }}">
     <link rel="manifest" href="{{ asset('rank-it.webmanifest') }}">
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('rank-it-192.png') }}">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('rank-it-180.png') }}">
     @auth
         <script src="{{ asset('install-app.js') }}" defer></script>
@@ -53,7 +55,10 @@
             });
         </script>
     @endauth
-    <a class="brand" href="{{ route('memories.index') }}">Rank It</a>
+    <a class="brand" href="{{ route('memories.index') }}">
+        <img src="{{ asset('rank-it-180.png') }}" width="36" height="36" alt="">
+        Rank It
+    </a>
 </header>
 <main>
     @if ($errors->any())
