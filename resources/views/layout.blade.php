@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#02274e">
     <title>@yield('title') · Rank It</title>
+    <script src="{{ asset('theme.js') }}"></script>
     <link rel="stylesheet" href="{{ asset('app.css') }}">
     <link rel="manifest" href="{{ asset('rank-it.webmanifest') }}">
     <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('rank-it-192.png') }}">
@@ -23,6 +24,7 @@
                 <a href="{{ route('memories.browse') }}">Memories</a>
                 <a href="{{ route('imports.index') }}">Import</a>
                 <button type="button" id="install-app" hidden>Add to Home Screen</button>
+                <button type="button" id="theme-switcher" hidden>Theme: Auto</button>
                 <form method="post" action="{{ route('logout') }}">
                     @csrf
                     <button type="submit">Log out</button>
