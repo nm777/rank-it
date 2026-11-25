@@ -41,7 +41,7 @@ a { color: #245640; }
     background: #fff;
     box-shadow: 0 .25rem .75rem #222d2726;
 }
-.site-menu nav a, .site-menu nav button {
+.site-menu nav a, .site-menu nav button:not([hidden]) {
     display: flex;
     align-items: center;
     width: 100%;
@@ -55,6 +55,16 @@ a { color: #245640; }
     text-decoration: none;
 }
 .site-menu > summary:hover, .site-menu nav :is(a, button):hover { background: #edf0e9; }
+.install-dialog {
+    width: min(26rem, calc(100% - 2rem));
+    padding: 1.25rem;
+    border: 1px solid #d4d9d4;
+    border-radius: .6rem;
+    color: inherit;
+    background: #fbfaf6;
+}
+.install-dialog h2 { margin-top: 0; }
+.install-dialog::backdrop { background: #222d2766; }
 .stack { display: grid; gap: .75rem; }
 .stack > button { justify-self: start; }
 input, textarea, button { font: inherit; }

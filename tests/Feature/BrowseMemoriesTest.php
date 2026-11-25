@@ -63,4 +63,17 @@ class BrowseMemoriesTest extends TestCase
             ->get(route('memories.browse', ['cursor' => 'invalid']))
             ->assertNotFound();
     }
+
+    public function test_signed_in_menu_provides_home_screen_installation(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->get(route('memories.index'))
+            ->assertOk()
+            ->assertSee('rel="manifest" href="'.asset('rank-it.webmanifest').'"', false)
+            ->assertSee('rel="apple-touch-icon"', false)
+            ->assertSee('Add to Home Screen</button>', false)
+            ->assertSee('Open as Web App')
+            ->assertSee('Install and create shortcut');
+    }
 }

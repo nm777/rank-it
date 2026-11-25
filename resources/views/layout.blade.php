@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title') · Rank It</title>
     <link rel="stylesheet" href="{{ asset('app.css') }}">
+    <link rel="manifest" href="{{ asset('rank-it.webmanifest') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('rank-it-180.png') }}">
+    @auth
+        <script src="{{ asset('install-app.js') }}" defer></script>
+    @endauth
 </head>
 <body class="@yield('page-class')">
 <header>
@@ -15,12 +20,21 @@
                 <a href="{{ route('memories.index') }}">Home</a>
                 <a href="{{ route('memories.browse') }}">Memories</a>
                 <a href="{{ route('imports.index') }}">Import</a>
+                <button type="button" id="install-app" hidden>Add to Home Screen</button>
                 <form method="post" action="{{ route('logout') }}">
                     @csrf
                     <button type="submit">Log out</button>
                 </form>
             </nav>
         </details>
+        <dialog class="install-dialog" aria-labelledby="install-title" id="install-help">
+            <h2 id="install-title">Add Rank It to your Home Screen</h2>
+            <p data-install-platform="ios"><strong>iPhone or iPad</strong> · Open Rank It in Safari, tap <strong>Share</strong> (under the page menu if needed), then <strong>Add to Home Screen</strong>. If shown, turn on <strong>Open as Web App</strong>, then tap <strong>Add</strong>.</p>
+            <p data-install-platform="android"><strong>Android</strong> · Open Rank It in Chrome, tap the three-dot menu, then choose <strong>Install app</strong> or <strong>Install and create shortcut</strong>. Some versions call it <strong>Add to Home screen</strong>.</p>
+            <form method="dialog">
+                <button type="submit">Done</button>
+            </form>
+        </dialog>
         <script>
             const siteMenu = document.querySelector('.site-menu');
             const menuToggle = siteMenu.querySelector('summary');
