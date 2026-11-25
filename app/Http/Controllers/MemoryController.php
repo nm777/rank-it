@@ -69,7 +69,7 @@ class MemoryController extends Controller
             AiOutput::record('Routing', ['decision' => 'ask', 'reason' => 'Recognized as a question']);
         }
         if ($choice === null && ($estimate = $providers->estimate('intent')) !== null) {
-            if ($call = $budget->reserve('intent', $estimate)) {
+            if ($call = $budget->reserve('intent', $estimate, $request->user()->id)) {
                 try {
                     [$choice, $tokens, $scores] = $providers->classifyIntent($text);
                     AiOutput::record('Jev intent', ['decision' => $choice ?? 'clarify', 'scores' => $scores, 'input_tokens' => $tokens]);

@@ -24,6 +24,10 @@ Route::middleware('auth')->group(function () {
     Route::delete('/messages/{message}', [MailboxController::class, 'deleteMessage'])->whereNumber('message')->name('messages.delete');
     Route::post('/messages/{message}/identity', [MemoryController::class, 'identify'])->whereNumber('message')->name('messages.identity');
     Route::post('/memories/{memory}/person', [MemoryController::class, 'identifyPerson'])->whereUuid('memory')->name('memories.person');
+    Route::get('/profile', [AccountController::class, 'profile'])->name('profile.show');
+    Route::patch('/profile', [AccountController::class, 'updateProfile'])->middleware('throttle:10,1')->name('profile.update');
+    Route::put('/profile/password', [AccountController::class, 'updatePassword'])->middleware('throttle:10,1')->name('profile.password');
+    Route::get('/profile/usage', [AccountController::class, 'usage'])->name('profile.usage');
     Route::post('/logout', [AccountController::class, 'logout'])->name('logout');
     Route::get('/', [MemoryController::class, 'index'])->name('memories.index');
     Route::get('/memories', [MemoryController::class, 'browse'])->name('memories.browse');

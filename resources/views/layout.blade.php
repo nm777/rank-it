@@ -27,6 +27,7 @@
                 <a href="{{ route('memories.index') }}">Home</a>
                 <a href="{{ route('memories.browse') }}">Memories</a>
                 <a href="{{ route('imports.index') }}">Import</a>
+                <a href="{{ route('profile.show') }}">Profile</a>
                 <button type="button" id="install-app" hidden>Add to Home Screen</button>
                 <div class="theme-switcher" role="group" aria-label="Theme" hidden>
                     <button type="button" data-theme-mode="light" aria-label="Light" aria-pressed="false" title="Light">

@@ -79,6 +79,7 @@ class InferenceTest extends TestCase
         $this->assertSame('[1,2]', $indexed->embedding);
         $this->assertSame('fixture', json_decode($indexed->configuration)->model);
         $this->assertDatabaseHas('inference_budget', ['committed' => 1692]);
+        $this->get('/profile/usage')->assertOk()->assertSee('$0.000001692 USD')->assertSee('3 recorded AI calls');
         $this->post('/search', ['wording' => 'Agreed.'])->assertSee('Agreed.');
     }
 

@@ -44,22 +44,24 @@ class IndexPassage implements ShouldQueue
                 return null;
             }
             $estimate = $providers->estimate($work->stage);
-            if ($estimate === null || ! ($work->call_id = $budget->reserve($work->stage, $estimate))) {
+            if ($estimate === null) {
+                return null;
+            }
+
+            $source = $work->memory_id
+                ? DB::table('memories')->where('id', $work->memory_id)->firstOrFail(['wording', 'user_id'])
+                : DB::table('mail_passage_sources')->where('id', $work->passage_id)->firstOrFail();
+            if (! ($work->call_id = $budget->reserve($work->stage, $estimate, $source->user_id))) {
                 return null;
             }
             (clone $query)->update(['call_id' => $work->call_id]);
-            if ($work->memory_id) {
-                $work->wording = DB::table('memories')->where('id', $work->memory_id)->value('wording');
-            } else {
-                $passage = DB::table('mail_passage_sources')->where('id', $work->passage_id)->firstOrFail();
-                $work->wording = $passage->wording;
-                if ($work->stage === 'screen') {
-                    $parent = DB::table('mail_messages')->where('user_id', $passage->user_id)
-                        ->where('identity', $passage->parent_identity)->value('id');
-                    $work->context = DB::table('mail_passages')->whereIn('message_id', array_filter([$parent, $passage->message_id]))
-                        ->where('id', '!=', $passage->id)->orderByRaw('case when message_id = ? then 0 else 1 end', [$parent])->orderBy('ordinal')
-                        ->selectRaw('left(wording, 1000) as excerpt')->limit(8)->get()->pluck('excerpt')->all();
-                }
+            $work->wording = $source->wording;
+            if ($work->stage === 'screen') {
+                $parent = DB::table('mail_messages')->where('user_id', $source->user_id)
+                    ->where('identity', $source->parent_identity)->value('id');
+                $work->context = DB::table('mail_passages')->whereIn('message_id', array_filter([$parent, $source->message_id]))
+                    ->where('id', '!=', $source->id)->orderByRaw('case when message_id = ? then 0 else 1 end', [$parent])->orderBy('ordinal')
+                    ->selectRaw('left(wording, 1000) as excerpt')->limit(8)->get()->pluck('excerpt')->all();
             }
 
             return $work;

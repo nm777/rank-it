@@ -50,7 +50,7 @@ class Recall
         $bindings = [$owner, $owner, $configuration];
         $estimate = $this->providers->estimate('embed');
         if ($estimate !== null && DB::selectOne("$indexed limit 1", $bindings)
-            && ($call = $this->budget->reserve('answer', $estimate))) {
+            && ($call = $this->budget->reserve('answer', $estimate, $owner))) {
             try {
                 [$vector, $tokens] = $this->providers->embed($search);
                 AiOutput::record('Question embedding', ['dimensions' => count($vector), 'input_tokens' => $tokens]);
@@ -100,7 +100,7 @@ class Recall
             }
         }
         $results = $selected;
-        $answer = $results ? $this->answer($question, $results, $context) : null;
+        $answer = $results ? $this->answer($owner, $question, $results, $context) : null;
         if (! $results) {
             AiOutput::record('Answer model', ['status' => 'Skipped because search found no matching passages']);
         }
@@ -128,13 +128,14 @@ class Recall
         if (! $config['endpoint'] || ! $config['model'] || ! $config['max_input'] || ! $config['max_output']) {
             return null;
         }
+
         return $config['input_rate'] * $config['max_input'] + $config['output_rate'] * $config['max_output'];
     }
 
-    private function answer(string $question, array $results, array $context): ?array
+    private function answer(int $owner, string $question, array $results, array $context): ?array
     {
         $cost = $this->answerCost();
-        if ($cost === null || ! ($call = $this->budget->reserve('answer', $cost))) {
+        if ($cost === null || ! ($call = $this->budget->reserve('answer', $cost, $owner))) {
             AiOutput::record('Answer model', ['status' => $cost === null ? 'Unavailable configuration' : 'Skipped because of the inference budget']);
 
             return null;
@@ -215,6 +216,7 @@ class Recall
             return compact('claims', 'partial', 'missing', 'conflict', 'uncertain', 'clarification', 'confirmedCount');
         } catch (HttpClientException $error) {
             AiOutput::record('Answer model', AiOutput::failure($error));
+
             return null;
         }
     }

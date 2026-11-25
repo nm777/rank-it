@@ -3,11 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
 
 class AccountController extends Controller
 {
@@ -40,11 +44,7 @@ class AccountController extends Controller
     {
         $account = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'password' => ['required', 'string', 'min:12', 'confirmed', 'not_regex:/\x00/', function ($attribute, $value, $fail) {
-                if (strlen($value) > 72) {
-                    $fail('Use a password at most 72 bytes long.');
-                }
-            }],
+            'password' => $this->passwordRules(),
         ]);
 
         $user = DB::transaction(function () use ($token, $account) {
@@ -63,6 +63,63 @@ class AccountController extends Controller
         return redirect()->route('memories.index');
     }
 
+    public function profile(Request $request): View
+    {
+        return view('profile', ['user' => $request->user()]);
+    }
+
+    public function updateProfile(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        if (is_string($request->input('email'))) {
+            $request->merge(['email' => Str::lower($request->input('email'))]);
+        }
+        $profile = $request->validate([
+            'name' => ['required', 'string', 'max:255', 'not_regex:/\x00/'],
+            'email' => ['bail', 'required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user)],
+            'current_password' => ['bail', 'required', 'string', 'max:72', 'not_regex:/\x00/', 'current_password'],
+        ]);
+
+        $user->fill(['name' => $profile['name'], 'email' => $profile['email']]);
+        if ($user->isDirty('email')) {
+            $user->email_verified_at = null;
+        }
+        try {
+            $user->save();
+        } catch (UniqueConstraintViolationException) {
+            throw ValidationException::withMessages(['email' => 'The email has already been taken.']);
+        }
+
+        return redirect()->route('profile.show')->with('status', 'Profile updated.');
+    }
+
+    public function updatePassword(Request $request): RedirectResponse
+    {
+        $passwords = $request->validate([
+            'current_password' => ['bail', 'required', 'string', 'max:72', 'not_regex:/\x00/', 'current_password'],
+            'password' => $this->passwordRules(),
+        ]);
+
+        $user = $request->user();
+        $user->password = $passwords['password'];
+        $user->setRememberToken(Str::random(60));
+        $user->save();
+        $request->session()->regenerate(true);
+
+        return redirect()->route('profile.show')->with('status', 'Password updated.');
+    }
+
+    public function usage(Request $request): View
+    {
+        $usage = DB::table('inference_calls')
+            ->where('user_id', $request->user()->id)
+            ->whereNotNull('actual')
+            ->selectRaw('count(*) as calls, coalesce(sum(actual), 0) as cost')
+            ->first();
+
+        return view('profile-usage', ['usage' => $usage]);
+    }
+
     public function logout(Request $request)
     {
         Auth::logout();
@@ -70,6 +127,15 @@ class AccountController extends Controller
         $request->session()->regenerateToken();
 
         return redirect()->route('login');
+    }
+
+    private function passwordRules(): array
+    {
+        return ['bail', 'required', 'string', 'min:12', 'confirmed', 'not_regex:/\x00/', function ($attribute, $value, $fail) {
+            if (strlen($value) > 72) {
+                $fail('Use a password at most 72 bytes long.');
+            }
+        }];
     }
 
     private function invitation(string $token)

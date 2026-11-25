@@ -70,8 +70,8 @@ class RecallTest extends TestCase
         $link = route('passages.show', ['passage' => $id, 'start' => 0, 'length' => mb_strlen($original)]).'#evidence';
         $response->assertSee($link);
         $this->get($link)->assertOk()->assertSee('<mark id="evidence">'.$original.'</mark>', false)->assertSee('2025');
-        $this->assertDatabaseHas('inference_calls', ['purpose' => 'answer', 'actual' => 80]);
-        $this->assertDatabaseHas('inference_calls', ['purpose' => 'answer', 'actual' => 6]);
+        $this->assertDatabaseHas('inference_calls', ['purpose' => 'answer', 'actual' => 80, 'user_id' => $owner->id]);
+        $this->assertDatabaseHas('inference_calls', ['purpose' => 'answer', 'actual' => 6, 'user_id' => $owner->id]);
         $this->actingAs($other)->get('/passages/'.$id)->assertNotFound();
     }
 
@@ -116,7 +116,7 @@ class RecallTest extends TestCase
         $this->post('/input', ['wording' => 'The toolbox is red.', 'intent' => 'save'])->assertRedirect('/');
         $this->assertDatabaseCount('memories', 2);
         Http::assertSentCount(3);
-        $this->assertSame(2, DB::table('inference_calls')->where('purpose', 'intent')->where('actual', 420)->count());
+        $this->assertSame(2, DB::table('inference_calls')->where('purpose', 'intent')->where('user_id', $owner->id)->where('actual', 420)->count());
     }
 
     public function test_replay_can_switch_between_memory_and_question_with_edited_wording(): void

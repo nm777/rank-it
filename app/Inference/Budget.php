@@ -13,11 +13,11 @@ class Budget
         return $amount <= (int) config('inference.cap') - $used;
     }
 
-    public function reserve(string $purpose, int $amount): ?int
+    public function reserve(string $purpose, int $amount, ?int $userId = null): ?int
     {
         throw_if($amount < 0, \InvalidArgumentException::class);
 
-        return DB::transaction(function () use ($purpose, $amount) {
+        return DB::transaction(function () use ($purpose, $amount, $userId) {
             $budget = DB::table('inference_budget')->where('id', 1);
             $used = $budget->lockForUpdate()->first()->committed;
             $limit = (int) config('inference.cap');
@@ -29,7 +29,11 @@ class Budget
             }
             $budget->increment('committed', $amount);
 
-            return DB::table('inference_calls')->insertGetId(['purpose' => $purpose, 'reserved' => $amount]);
+            return DB::table('inference_calls')->insertGetId([
+                'purpose' => $purpose,
+                'reserved' => $amount,
+                'user_id' => $userId,
+            ]);
         });
     }
 
