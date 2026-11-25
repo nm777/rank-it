@@ -1,6 +1,5 @@
 (() => {
     const modes = ['light', 'dark', 'auto'];
-    const labels = { light: 'Light', dark: 'Dark', auto: 'Auto' };
     const storageKey = 'rank-it-theme';
     const root = document.documentElement;
     let mode = 'auto';
@@ -17,30 +16,32 @@
     root.dataset.theme = mode;
 
     document.addEventListener('DOMContentLoaded', () => {
-        const switcher = document.querySelector('#theme-switcher');
+        const switcher = document.querySelector('.theme-switcher');
         if (!switcher) {
             return;
         }
 
-        function renderSwitcher() {
-            const nextMode = modes[(modes.indexOf(mode) + 1) % modes.length];
-            switcher.textContent = `Theme: ${labels[mode]}`;
-            switcher.setAttribute('aria-label', `Theme: ${labels[mode]}. Switch to ${labels[nextMode]}.`);
-            return nextMode;
+        const choices = switcher.querySelectorAll('[data-theme-mode]');
+        function updateSelection() {
+            for (const choice of choices) {
+                choice.setAttribute('aria-pressed', String(choice.dataset.themeMode === mode));
+            }
         }
 
-        let nextMode = renderSwitcher();
+        updateSelection();
         switcher.hidden = false;
-        switcher.addEventListener('click', () => {
-            mode = nextMode;
-            root.dataset.theme = mode;
-            nextMode = renderSwitcher();
+        for (const choice of choices) {
+            choice.addEventListener('click', () => {
+                mode = choice.dataset.themeMode;
+                root.dataset.theme = mode;
+                updateSelection();
 
-            try {
-                localStorage.setItem(storageKey, mode);
-            } catch {
-                // Storage can be disabled even when JavaScript is enabled.
-            }
-        });
+                try {
+                    localStorage.setItem(storageKey, mode);
+                } catch {
+                    // Storage can be disabled even when JavaScript is enabled.
+                }
+            });
+        }
     });
 })();
