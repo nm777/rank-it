@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#02274e">
     <title>@yield('title') · Rank It</title>
     <script src="{{ asset('theme.js') }}"></script>
-    <link rel="stylesheet" href="{{ asset('app.css') }}">
+    <link rel="stylesheet" href="{{ asset('app.css') }}?v={{ hash_file('sha256', public_path('app.css')) }}">
     <link rel="manifest" href="{{ asset('rank-it.webmanifest') }}">
     <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('rank-it-192.png') }}">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('rank-it-180.png') }}">
@@ -48,6 +48,7 @@
                 <a href="{{ route('imports.index') }}">Import</a>
                 <a href="{{ route('profile.show') }}">Profile</a>
                 <button type="button" id="install-app" hidden>Add to Home Screen</button>
+                <button type="button" id="reload-app">Reload app</button>
                 <form method="post" action="{{ route('logout') }}">
                     @csrf
                     <button type="submit">Log out</button>
@@ -65,6 +66,11 @@
         <script>
             const siteMenu = document.querySelector('.site-menu');
             const menuToggle = siteMenu.querySelector('summary');
+
+            document.querySelector('#reload-app').addEventListener('click', () => {
+                siteMenu.open = false;
+                window.location.reload();
+            });
 
             document.addEventListener('click', event => {
                 if (!siteMenu.contains(event.target) || event.target.closest('.site-menu a')) {
