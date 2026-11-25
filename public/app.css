@@ -46,13 +46,6 @@ body > header {
     color: var(--ivory);
     background: var(--navy);
 }
-/* Keep header controls below the iOS status bar's blur. */
-.ios-home-screen body > header { padding-block-start: calc(.75rem + 11px); }
-@media (display-mode: standalone) {
-    @supports (-webkit-touch-callout: none) {
-        body > header { padding-block-start: calc(.75rem + 11px); }
-    }
-}
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .brand:focus-visible, .site-menu > summary:focus-visible { outline-color: var(--ivory); }
 main { padding-bottom: 4rem; }
