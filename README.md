@@ -22,7 +22,7 @@ Open the printed link and create the account. Invitations expire after seven day
 
 The web and worker mount the same private `import-staging` volume. The worker uses PostgreSQL's `jobs` table. Capture commits directly to PostgreSQL and can be read while the worker is stopped.
 
-For a native run, use PHP 8.2 or later with `pdo_pgsql`, `zip` and Composer. Provide a PostgreSQL database with pgvector available to the migration role, configure `.env`, and run `composer install`, `php artisan key:generate` and `php artisan migrate`. Start `php artisan serve` and `php artisan queue:work database --timeout=60 --tries=3` from the same checkout. Set `IMPORT_STAGING_PATH` to the same writable private directory for both processes if they run from separate checkouts.
+For a native run, use PHP 8.3 or later with `pdo_pgsql`, `zip` and Composer. Provide a PostgreSQL database with pgvector available to the migration role, configure `.env`, and run `composer install`, `php artisan key:generate` and `php artisan migrate`. Start `php artisan serve` and `php artisan queue:work database --timeout=60 --tries=3` from the same checkout. Set `IMPORT_STAGING_PATH` to the same writable private directory for both processes if they run from separate checkouts.
 
 ## Tests
 
