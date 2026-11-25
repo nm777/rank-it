@@ -33,10 +33,10 @@ body > header {
     background: var(--navy);
 }
 /* Keep header controls below the iOS status bar's blur. */
-.ios-home-screen body > header { padding-block-start: 2.25rem; }
+.ios-home-screen body > header { padding-block-start: 1.75rem; }
 @media (display-mode: standalone) {
     @supports (-webkit-touch-callout: none) {
-        body > header { padding-block-start: 2.25rem; }
+        body > header { padding-block-start: 1.75rem; }
     }
 }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
