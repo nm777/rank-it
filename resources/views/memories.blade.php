@@ -22,7 +22,7 @@ document.querySelector('#wording').addEventListener('keydown', event => {
 <section class="answer-results" aria-labelledby="memory-list-heading">
     <h2 id="memory-list-heading">{{ isset($query) ? 'Search results' : 'Recent memories' }}</h2>
     @foreach ($results as $memory)
-        @include('memory-card')
+        <x-memory-card :memory="$memory" />
     @endforeach
     @foreach ($passages ?? [] as $passage)
         <article>

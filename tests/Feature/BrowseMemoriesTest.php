@@ -64,6 +64,23 @@ class BrowseMemoriesTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_memory_card_pencil_opens_the_correction_form(): void
+    {
+        $user = User::factory()->create();
+        $memory = $user->memories()->create(['wording' => 'Beach outing']);
+        $editorUrl = route('memories.show', ['memory' => $memory, 'edit' => 1]).'#correct-memory';
+
+        $this->actingAs($user)->get(route('memories.browse'))
+            ->assertOk()
+            ->assertSee('href="'.$editorUrl.'" aria-label="Edit memory"', false)
+            ->assertDontSee('>Beach outing</a>', false);
+
+        $this->get($editorUrl)
+            ->assertOk()
+            ->assertSee('<details id="correct-memory" open', false)
+            ->assertSee('Save correction');
+    }
+
     public function test_signed_in_menu_provides_home_screen_installation(): void
     {
         $user = User::factory()->create();

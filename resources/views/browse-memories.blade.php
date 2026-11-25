@@ -8,7 +8,7 @@
 </form>
 <section id="memory-results" class="answer-results" aria-label="Memory results">
     @forelse ($memories as $memory)
-        @include('memory-card')
+        <x-memory-card :memory="$memory" />
     @empty
         <p>{{ $search === '' ? 'Your saved memories will appear here.' : 'No matching memories.' }}</p>
     @endforelse

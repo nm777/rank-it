@@ -11,7 +11,7 @@
 @foreach ($ratings as $rating)
 <p>{{ $rating->subject }} {{ $rating->aspect }} · {{ $rating->score }}{{ $rating->scale !== null ? '/'.$rating->scale : ' (scale unknown)' }}</p>
 @endforeach
-<details @if($errors->any()) open @endif>
+<details id="correct-memory"@if ($errors->any() || request()->boolean('edit')) open @endif>
     <summary>Correct memory</summary>
     <form method="post" action="{{ route('memories.update', $memory) }}" class="stack">
         @csrf

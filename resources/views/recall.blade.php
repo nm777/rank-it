@@ -12,7 +12,7 @@
     @if (count($answer['clarification'] ?? []) > 1)
         <p>Which person did you mean?</p>
         @foreach ($answer['clarification'] as $key)
-            <article>{{ $results[$key]->identified_person ?: Str::limit($results[$key]->wording, 180) }} @include('source-link', ['source' => $results[$key]])</article>
+            <x-memory-card>{{ $results[$key]->identified_person ?: Str::limit($results[$key]->wording, 180) }} @include('source-link', ['source' => $results[$key]])</x-memory-card>
         @endforeach
     @elseif ($answer !== null && !$answer['claims'] && !$answer['uncertain'])
         <p>The matching passages do not establish an answer.</p>
@@ -22,7 +22,7 @@
             <p>@if ($answer['confirmedCount'] !== null){{ $answer['confirmedCount'] }} confirmed {{ Str::plural('match', $answer['confirmedCount']) }} found. @endif Search coverage may be incomplete.</p>
         @endif
         @foreach ($answer['claims'] as $claim)
-            <article><p class="answer-wording">“{{ $claim['quote'] }}”</p><div class="evidence-actions">@include('source-link', ['source' => $results[$claim['key']], 'excerpt' => $claim['quote']])@include('dismiss-source', ['key' => $claim['key']])</div></article>
+            <x-memory-card>“{{ $claim['quote'] }}”<x-slot:actions>@include('source-link', ['source' => $results[$claim['key']], 'excerpt' => $claim['quote']])@include('dismiss-source', ['key' => $claim['key']])</x-slot:actions></x-memory-card>
         @endforeach
         @if ($answer['partial'])
             <p class="answer-note">The passages support only part of your question.@if ($answer['missing']) Missing evidence for “{{ $answer['missing'] }}”.@endif</p>
@@ -31,13 +31,13 @@
     @if (!empty($answer['uncertain']))
         <h2>Uncertain matches</h2>
         @foreach ($answer['uncertain'] as $claim)
-            <article>{{ $claim['quote'] }} @include('source-link', ['source' => $results[$claim['key']], 'excerpt' => $claim['quote']])</article>
+            <x-memory-card>{{ $claim['quote'] }} @include('source-link', ['source' => $results[$claim['key']], 'excerpt' => $claim['quote']])</x-memory-card>
         @endforeach
     @endif
     @if (empty($answer['claims']) && empty($answer['uncertain']) && count($answer['clarification'] ?? []) < 2)
         <h2>Search results</h2>
         @foreach ($results as $source)
-            <article><p class="answer-wording">{{ \Illuminate\Support\Str::limit($source->wording, 200) }}</p><div class="evidence-actions">@include('source-link') @include('dismiss-source', ['key' => $source->key])</div></article>
+            <x-memory-card>{{ \Illuminate\Support\Str::limit($source->wording, 200) }}<x-slot:actions>@include('source-link') @include('dismiss-source', ['key' => $source->key])</x-slot:actions></x-memory-card>
         @endforeach
     @endif
 @endif

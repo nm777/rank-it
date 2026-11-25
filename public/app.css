@@ -213,6 +213,20 @@ small { display: block; }
 }
 .answer-results article + article { margin-top: .65rem; }
 .answer-wording { margin: 0 0 .55rem; font-size: 1.08rem; }
+.memory-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+}
+.memory-card-edit {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 44px;
+    min-height: 44px;
+    border-radius: .5rem;
+}
+.memory-card-edit:hover { background: var(--blue-wash); }
 .evidence-actions { gap: .25rem .75rem; }
 .evidence-source { font-size: .875rem; }
 .evidence-source small, .answer-note { color: var(--muted-ink); }
