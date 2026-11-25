@@ -43,6 +43,7 @@ a { color: var(--accent); }
     align-items: center;
     gap: .55rem;
     min-height: 44px;
+    margin-inline-end: auto;
     color: inherit;
     font-weight: 750;
     text-decoration: none;
@@ -50,7 +51,6 @@ a { color: var(--accent); }
 .brand img { border: 1px solid #f8edcf40; border-radius: .45rem; }
 .site-menu {
     position: relative;
-    margin-inline-start: auto;
 }
 .site-menu > summary {
     display: grid;
@@ -98,29 +98,33 @@ a { color: var(--accent); }
 .theme-switcher:not([hidden]) {
     display: grid;
     overflow: hidden;
-    grid-template-columns: repeat(3, minmax(44px, 1fr));
+    grid-template-columns: repeat(3, 44px);
     gap: .125rem;
     padding: .125rem;
-    margin: .25rem;
     border: 1px solid var(--line);
     border-radius: 2rem;
     background: var(--blue-wash);
 }
-.site-menu nav .theme-switcher button {
-    justify-content: center;
+.theme-switcher button {
+    display: grid;
+    place-items: center;
+    min-height: 44px;
     padding: 0;
+    border: 0;
     border-radius: 0;
+    background: transparent;
+    color: var(--accent);
 }
-.site-menu nav .theme-switcher button:first-child {
+.theme-switcher button:first-child {
     border-start-start-radius: 2rem;
     border-end-start-radius: 2rem;
 }
-.site-menu nav .theme-switcher button:last-child {
+.theme-switcher button:last-child {
     border-start-end-radius: 2rem;
     border-end-end-radius: 2rem;
 }
-.site-menu .theme-switcher button:hover { background: var(--surface); }
-.site-menu .theme-switcher button[aria-pressed="true"] {
+.theme-switcher button:hover { background: var(--surface); }
+.theme-switcher button[aria-pressed="true"] {
     color: var(--button-text);
     background: var(--accent);
 }

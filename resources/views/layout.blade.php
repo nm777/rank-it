@@ -21,6 +21,25 @@
         Rank It
     </a>
     @auth
+        <div class="theme-switcher" role="group" aria-label="Theme" hidden>
+            <button type="button" data-theme-mode="light" aria-label="Light" aria-pressed="false" title="Light">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="4"/>
+                    <path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>
+                </svg>
+            </button>
+            <button type="button" data-theme-mode="auto" aria-label="Auto (system theme)" aria-pressed="false" title="Auto (system theme)">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="3" y="4" width="18" height="13" rx="2"/>
+                    <path d="M12 17v3m-4 0h8"/>
+                </svg>
+            </button>
+            <button type="button" data-theme-mode="dark" aria-label="Dark" aria-pressed="false" title="Dark">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M20.5 15.2A9 9 0 0 1 8.8 3.5a9 9 0 1 0 11.7 11.7Z"/>
+                </svg>
+            </button>
+        </div>
         <details class="site-menu">
             <summary aria-label="Menu"><span aria-hidden="true"></span></summary>
             <nav aria-label="Main navigation">
@@ -29,25 +48,6 @@
                 <a href="{{ route('imports.index') }}">Import</a>
                 <a href="{{ route('profile.show') }}">Profile</a>
                 <button type="button" id="install-app" hidden>Add to Home Screen</button>
-                <div class="theme-switcher" role="group" aria-label="Theme" hidden>
-                    <button type="button" data-theme-mode="light" aria-label="Light" aria-pressed="false" title="Light">
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <circle cx="12" cy="12" r="4"/>
-                            <path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>
-                        </svg>
-                    </button>
-                    <button type="button" data-theme-mode="auto" aria-label="Auto (system theme)" aria-pressed="false" title="Auto (system theme)">
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <rect x="3" y="4" width="18" height="13" rx="2"/>
-                            <path d="M12 17v3m-4 0h8"/>
-                        </svg>
-                    </button>
-                    <button type="button" data-theme-mode="dark" aria-label="Dark" aria-pressed="false" title="Dark">
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M20.5 15.2A9 9 0 0 1 8.8 3.5a9 9 0 1 0 11.7 11.7Z"/>
-                        </svg>
-                    </button>
-                </div>
                 <form method="post" action="{{ route('logout') }}">
                     @csrf
                     <button type="submit">Log out</button>
