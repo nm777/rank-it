@@ -31,15 +31,15 @@
                             <path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>
                         </svg>
                     </button>
-                    <button type="button" data-theme-mode="dark" aria-label="Dark" aria-pressed="false" title="Dark">
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M20.5 15.2A9 9 0 0 1 8.8 3.5a9 9 0 1 0 11.7 11.7Z"/>
-                        </svg>
-                    </button>
                     <button type="button" data-theme-mode="auto" aria-label="Auto (system theme)" aria-pressed="false" title="Auto (system theme)">
                         <svg viewBox="0 0 24 24" aria-hidden="true">
                             <rect x="3" y="4" width="18" height="13" rx="2"/>
                             <path d="M12 17v3m-4 0h8"/>
+                        </svg>
+                    </button>
+                    <button type="button" data-theme-mode="dark" aria-label="Dark" aria-pressed="false" title="Dark">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M20.5 15.2A9 9 0 0 1 8.8 3.5a9 9 0 1 0 11.7 11.7Z"/>
                         </svg>
                     </button>
                 </div>
