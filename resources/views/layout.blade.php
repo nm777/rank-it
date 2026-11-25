@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#02274e">
     <title>@yield('title') · Rank It</title>
+    <script>
+        if (navigator.standalone === true) {
+            document.documentElement.classList.add('ios-home-screen');
+        }
+    </script>
     <script src="{{ asset('theme.js') }}"></script>
     <link rel="stylesheet" href="{{ asset('app.css') }}?v={{ hash_file('sha256', public_path('app.css')) }}">
     <link rel="manifest" href="{{ asset('rank-it.webmanifest') }}">
