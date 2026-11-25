@@ -7,12 +7,54 @@
 * { box-sizing: border-box; }
 body { margin: 0; }
 header, main { max-width: 44rem; margin: auto; padding: 1rem; }
-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+header { display: flex; align-items: center; gap: .5rem; }
 main { padding-bottom: 4rem; }
 h1 { font-size: clamp(1.8rem, 5vw, 2.5rem); line-height: 1.15; margin: 1.4rem 0; }
 h2 { font-size: 1.25rem; }
 a { color: #245640; }
 .brand { font-weight: 750; text-decoration: none; }
+.site-menu { position: relative; }
+.site-menu > summary {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    list-style: none;
+    border-radius: .45rem;
+    color: #245640;
+}
+.site-menu > summary::-webkit-details-marker { display: none; }
+.site-menu > summary span {
+    width: 19px;
+    height: 14px;
+    border-block: 2px solid currentColor;
+    background: linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat;
+}
+.site-menu nav {
+    position: absolute;
+    z-index: 1;
+    top: 100%;
+    left: 0;
+    min-width: 10rem;
+    padding: .25rem;
+    border: 1px solid #d4d9d4;
+    border-radius: .45rem;
+    background: #fff;
+    box-shadow: 0 .25rem .75rem #222d2726;
+}
+.site-menu nav a, .site-menu nav button {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 44px;
+    padding: .35rem .7rem;
+    border: 0;
+    border-radius: .25rem;
+    background: transparent;
+    color: #245640;
+    font-size: .875rem;
+    text-decoration: none;
+}
+.site-menu > summary:hover, .site-menu nav :is(a, button):hover { background: #edf0e9; }
 .stack { display: grid; gap: .75rem; }
 .stack > button { justify-self: start; }
 input, textarea, button { font: inherit; }
@@ -101,11 +143,15 @@ small { display: block; }
 .ai-output { margin-top: .65rem; }
 
 .memory-entry header { padding-block: .35rem; }
-.memory-entry header button { font-size: .875rem; padding: .35rem .7rem; min-height: 44px; }
 .memory-entry main { padding-top: .35rem; }
 .entry-form { gap: .4rem; }
 .entry-form textarea { padding: .55rem .7rem; }
 .entry-form button { min-height: 44px; padding-block: .4rem; }
+.memory-search { display: flex; gap: .5rem; }
+.memory-search input { min-width: 0; }
+.memory-pagination { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: .75rem; }
+.memory-pagination a { display: inline-flex; align-items: center; min-height: 44px; }
+#memory-load-status:empty { display: none; }
 
 @media (max-width: 40rem) and (orientation: portrait) {
     .entry-form > button { width: 100%; }

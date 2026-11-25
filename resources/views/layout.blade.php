@@ -8,13 +8,38 @@
 </head>
 <body class="@yield('page-class')">
 <header>
-    <a class="brand" href="{{ route('memories.index') }}">Rank It</a>
     @auth
-        <form method="post" action="{{ route('logout') }}">
-            @csrf
-            <button class="secondary">Sign out</button>
-        </form>
+        <details class="site-menu">
+            <summary aria-label="Menu"><span aria-hidden="true"></span></summary>
+            <nav aria-label="Main navigation">
+                <a href="{{ route('memories.index') }}">Home</a>
+                <a href="{{ route('memories.browse') }}">Memories</a>
+                <a href="{{ route('imports.index') }}">Import</a>
+                <form method="post" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit">Log out</button>
+                </form>
+            </nav>
+        </details>
+        <script>
+            const siteMenu = document.querySelector('.site-menu');
+            const menuToggle = siteMenu.querySelector('summary');
+
+            document.addEventListener('click', event => {
+                if (!siteMenu.contains(event.target) || event.target.closest('.site-menu a')) {
+                    siteMenu.open = false;
+                }
+            });
+
+            siteMenu.addEventListener('keydown', event => {
+                if (event.key === 'Escape' && siteMenu.open) {
+                    siteMenu.open = false;
+                    menuToggle.focus();
+                }
+            });
+        </script>
     @endauth
+    <a class="brand" href="{{ route('memories.index') }}">Rank It</a>
 </header>
 <main>
     @if ($errors->any())

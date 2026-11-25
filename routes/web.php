@@ -26,6 +26,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/memories/{memory}/person', [MemoryController::class, 'identifyPerson'])->whereUuid('memory')->name('memories.person');
     Route::post('/logout', [AccountController::class, 'logout'])->name('logout');
     Route::get('/', [MemoryController::class, 'index'])->name('memories.index');
+    Route::get('/memories', [MemoryController::class, 'browse'])->name('memories.browse');
     Route::post('/conversation/new', [MemoryController::class, 'reset'])->name('conversation.new');
     Route::get('/conversation/{turn}/status', [MemoryController::class, 'status'])->whereUuid('turn')->name('conversation.status');
     Route::post('/conversation/{turn}/dismiss', [MemoryController::class, 'dismiss'])->whereUuid('turn')->name('conversation.dismiss');

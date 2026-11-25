@@ -10,9 +10,12 @@ use App\Inference\Ratings;
 use App\Inference\RatingSearch;
 use App\Inference\Recall;
 use App\Jobs\IndexPassage;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\Cursor;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 
 class MemoryController extends Controller
 {
@@ -24,6 +27,30 @@ class MemoryController extends Controller
                 ? $request->user()->memories()->find($request->session()->get('saved_memory_id'))
                 : null,
         ]);
+    }
+
+    public function browse(Request $request): View
+    {
+        $data = $request->validate([
+            'q' => ['nullable', 'string', 'max:10000', 'not_regex:/\x00/'],
+            'cursor' => ['nullable', 'string', 'max:512'],
+        ]);
+        $search = $data['q'] ?? '';
+        $cursor = Cursor::fromEncoded($data['cursor'] ?? null);
+        if (isset($data['cursor'])) {
+            abort_if(Validator::make($cursor?->toArray() ?? [], [
+                'created_at' => ['required', 'string', 'date'],
+                'id' => ['required', 'uuid'],
+            ])->fails(), 404);
+        }
+
+        $memories = $request->user()->memories()
+            ->when($search !== '', fn ($query) => $query->whereRaw('strpos(lower(wording), lower(?)) > 0', [$search]))
+            ->latest()->orderByDesc('id')
+            ->cursorPaginate(20, cursor: $cursor)
+            ->appends($search === '' ? [] : ['q' => $search]);
+
+        return view('browse-memories', compact('memories', 'search'));
     }
 
     public function input(Request $request, Recall $recall, Conversation $conversation, Providers $providers, Budget $budget)
@@ -220,6 +247,7 @@ class MemoryController extends Controller
     public function status(Conversation $conversation, string $turn)
     {
         $evidence = $conversation->turn($turn)['evidence'];
+
         return response()->json($conversation->changes($evidence));
     }
 
