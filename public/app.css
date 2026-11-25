@@ -24,6 +24,20 @@
 * { box-sizing: border-box; }
 body { margin: 0; }
 main { max-width: 44rem; margin: auto; padding: 1rem; }
+.status-bar-surface { display: none; }
+@supports (background-clip: text) {
+    .ios-home-screen .status-bar-surface {
+        display: block;
+        position: fixed;
+        inset: 0 0 auto;
+        height: 11px;
+        z-index: 2;
+        pointer-events: none;
+        background-color: var(--navy);
+        /* Let WebKit sample the color without painting over scrolling content. */
+        background-clip: text;
+    }
+}
 body > header {
     display: flex;
     align-items: center;

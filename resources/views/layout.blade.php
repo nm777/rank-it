@@ -20,6 +20,7 @@
     @endauth
 </head>
 <body class="@yield('page-class')">
+<div class="status-bar-surface" aria-hidden="true"></div>
 <header>
     <a class="brand" href="{{ route('memories.index') }}">
         <img src="{{ asset('rank-it-180.png') }}" width="36" height="36" alt="">
