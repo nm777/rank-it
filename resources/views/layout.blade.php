@@ -99,14 +99,22 @@
     @endauth
 </header>
 @auth
-    <a class="import-progress" href="{{ route('imports.queue') }}" data-import-progress hidden>
-        <span>File import <span aria-hidden="true">·</span> <span data-import-progress-label></span></span>
-        <progress data-import-file-bar aria-label="File import" max="1" value="0"></progress>
-        <span data-import-indexing hidden>
-            Meaning-based search <span aria-hidden="true">·</span> <span data-import-indexing-label></span>
-            <progress aria-label="Meaning-based search preparation" max="1" value="0"></progress>
-        </span>
-    </a>
+    <div class="import-progress" data-import-progress="{{ route('imports.queue') }}" hidden>
+        <div class="import-progress-row" data-import-progress-row="files" hidden>
+            <a href="{{ route('imports.queue') }}">
+                File import <span aria-hidden="true">·</span> <span data-import-progress-label></span>
+                <progress aria-label="File import" max="1" value="0"></progress>
+            </a>
+            <button type="button" aria-label="Dismiss completed file import progress" hidden>×</button>
+        </div>
+        <div class="import-progress-row" data-import-progress-row="indexing" hidden>
+            <a href="{{ route('imports.queue') }}">
+                Meaning-based search <span aria-hidden="true">·</span> <span data-import-progress-label></span>
+                <progress aria-label="Meaning-based search preparation" max="1" value="0"></progress>
+            </a>
+            <button type="button" aria-label="Dismiss completed meaning-based search progress" hidden>×</button>
+        </div>
+    </div>
 @endauth
 <main>
     @if ($errors->any())

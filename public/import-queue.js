@@ -1,16 +1,37 @@
 (() => {
-    const link = document.querySelector('[data-import-progress]');
-    if (!link) return;
+    const progress = document.querySelector('[data-import-progress]');
+    if (!progress) return;
 
-    const bar = link.querySelector('[data-import-file-bar]');
-    const label = link.querySelector('[data-import-progress-label]');
-    const indexing = link.querySelector('[data-import-indexing]');
-    const indexingBar = indexing.querySelector('progress');
-    const indexingLabel = indexing.querySelector('[data-import-indexing-label]');
+    const rows = [...progress.querySelectorAll('[data-import-progress-row]')];
+    const updateVisibility = () => { progress.hidden = rows.every(row => row.hidden); };
+    const updateProgress = Object.fromEntries(rows.map(row => {
+        const bar = row.querySelector('progress');
+        const label = row.querySelector('[data-import-progress-label]');
+        const dismiss = row.querySelector('button');
+        let dismissedTotal = null;
+
+        dismiss.addEventListener('click', () => {
+            dismissedTotal = bar.max;
+            row.hidden = true;
+            updateVisibility();
+            const nextLink = progress.querySelector('[data-import-progress-row]:not([hidden]) a');
+            (nextLink ?? document.querySelector('.site-menu > summary'))?.focus();
+        });
+
+        return [row.dataset.importProgressRow, (finished, total, text) => {
+            const complete = total > 0 && finished === total;
+            if (!complete || dismissedTotal !== total) dismissedTotal = null;
+            row.hidden = total === 0 || dismissedTotal !== null;
+            dismiss.hidden = !complete;
+            bar.max = Math.max(1, total);
+            bar.value = finished;
+            label.textContent = text;
+        }];
+    }));
     const indexingStages = document.querySelectorAll('[data-indexing-stage]');
     const details = document.querySelector('[data-import-queue-files]');
     const count = document.querySelector('[data-import-queue-count]');
-    const endpoint = new URL(link.href);
+    const endpoint = new URL(progress.dataset.importProgress, document.baseURI);
     if (details) endpoint.searchParams.set('details', '1');
 
     let checking = false;
@@ -29,15 +50,9 @@
             const {screening, embedding, indexed, skipped} = status.indexing;
             const prepared = indexed + skipped;
             const passageTotal = prepared + screening + embedding;
-            link.hidden = status.total === 0 && passageTotal === 0;
-            bar.max = Math.max(1, status.total);
-            bar.value = status.finished;
-            label.textContent = text;
-
-            indexing.hidden = passageTotal === 0;
-            indexingBar.max = Math.max(1, passageTotal);
-            indexingBar.value = prepared;
-            indexingLabel.textContent = `${prepared} of ${passageTotal} passages processed`;
+            updateProgress.files(status.finished, status.total, text);
+            updateProgress.indexing(prepared, passageTotal, `${prepared} of ${passageTotal} passages processed`);
+            updateVisibility();
 
             if (details) {
                 count.textContent = text;
