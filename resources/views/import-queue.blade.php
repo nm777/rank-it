@@ -11,6 +11,11 @@
         <span data-indexing-stage="indexed">{{ $indexing['indexed'] }}</span> indexed ·
         <span data-indexing-stage="skipped">{{ $indexing['skipped'] }}</span> skipped
     </p>
+    <p data-indexing-blocked @if (!$indexing['blocked']) hidden @endif>
+        <strong><span data-indexing-stage="blocked">{{ $indexing['blocked'] }}</span> blocked.</strong>
+        A search request did not finish for each of these passages. Support needs to review the requests before they can be retried.
+        You can still search the imported text for exact phrases.
+    </p>
 </section>
 <div data-import-queue-files>
     @include('import-queue-files')

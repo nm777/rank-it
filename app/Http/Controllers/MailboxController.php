@@ -37,15 +37,21 @@ class MailboxController extends Controller
         $stages = DB::table('mail_messages')
             ->join('mail_passages', 'mail_passages.message_id', '=', 'mail_messages.id')
             ->join('inference_work', 'inference_work.passage_id', '=', 'mail_passages.id')
+            ->leftJoin('inference_calls', 'inference_calls.id', '=', 'inference_work.call_id')
             ->where('mail_messages.user_id', $request->user()->id)
             ->groupBy('inference_work.stage')
             ->selectRaw('inference_work.stage, count(*) as total, max(inference_work.id) as latest_work')
+            ->selectRaw('count(*) filter (where inference_calls.actual is null and inference_calls.created_at < ?) as interrupted',
+                [now()->subMinutes(2)])
             ->get()->keyBy('stage');
+        $interruptedScreening = $stages->get('screen')->interrupted ?? 0;
+        $interruptedEmbedding = $stages->get('embed')->interrupted ?? 0;
         $indexing = [
-            'screening' => $stages->get('screen')->total ?? 0,
-            'embedding' => $stages->get('embed')->total ?? 0,
+            'screening' => ($stages->get('screen')->total ?? 0) - $interruptedScreening,
+            'embedding' => ($stages->get('embed')->total ?? 0) - $interruptedEmbedding,
             'indexed' => $stages->get('indexed')->total ?? 0,
             'skipped' => $stages->get('skipped')->total ?? 0,
+            'blocked' => $interruptedScreening + $interruptedEmbedding,
         ];
         $indexingRevision = $stages->max('latest_work');
 

@@ -85,7 +85,7 @@ class ImportLifecycleTest extends TestCase
         $this->actingAs($other);
         $this->upload(['private.txt' => 'Private note']);
         $this->actingAs($owner);
-        $emptyIndexing = ['screening' => 0, 'embedding' => 0, 'indexed' => 0, 'skipped' => 0];
+        $emptyIndexing = ['screening' => 0, 'embedding' => 0, 'indexed' => 0, 'skipped' => 0, 'blocked' => 0];
         $this->getJson('/imports/queue')->assertExactJson([
             'total' => 0, 'finished' => 0, 'indexing' => $emptyIndexing, 'latestBatch' => null, 'indexingRevision' => null,
         ]);
@@ -115,7 +115,7 @@ class ImportLifecycleTest extends TestCase
         $indexingRevision = DB::table('inference_work')->whereIn('passage_id', DB::table('mail_passage_sources')
             ->where('user_id', $owner->id)->select('id'))->max('id');
         $this->getJson('/imports/queue')->assertJson(['total' => 1, 'finished' => 1, 'indexing' => [
-            'screening' => 2, 'embedding' => 0, 'indexed' => 0, 'skipped' => 0,
+            'screening' => 2, 'embedding' => 0, 'indexed' => 0, 'skipped' => 0, 'blocked' => 0,
         ], 'latestBatch' => $latestBatch, 'indexingRevision' => $indexingRevision]);
         $this->get('/imports/queue')->assertSee('waiting.txt')->assertDontSee('finished.txt');
         DB::table('inference_work')->whereIn('passage_id', DB::table('mail_passage_sources')->where('user_id', $owner->id)
@@ -124,12 +124,35 @@ class ImportLifecycleTest extends TestCase
             ->where('wording', 'Waiting note')->select('id'));
         $latestWork->update(['stage' => 'embed']);
         $this->getJson('/imports/queue')->assertJsonPath('indexing', [
-            'screening' => 0, 'embedding' => 1, 'indexed' => 0, 'skipped' => 1,
+            'screening' => 0, 'embedding' => 1, 'indexed' => 0, 'skipped' => 1, 'blocked' => 0,
         ]);
         $latestWork->update(['stage' => 'indexed']);
         $this->getJson('/imports/queue?details=1')->assertJsonPath('indexing', [
-            'screening' => 0, 'embedding' => 0, 'indexed' => 1, 'skipped' => 1,
+            'screening' => 0, 'embedding' => 0, 'indexed' => 1, 'skipped' => 1, 'blocked' => 0,
         ])->assertJsonPath('indexingRevision', $indexingRevision);
+    }
+
+    public function test_queue_distinguishes_interrupted_indexing_from_recent_requests(): void
+    {
+        $this->actingAs(User::factory()->create());
+        $this->upload(['first.txt' => 'First passage', 'second.txt' => 'Second passage']);
+        config(['inference.cap' => 0]);
+        $this->drain();
+
+        $workIds = DB::table('inference_work')->orderBy('id')->pluck('id');
+        foreach ($workIds as $position => $workId) {
+            $call = DB::table('inference_calls')->insertGetId([
+                'purpose' => 'screen',
+                'reserved' => 1,
+                'created_at' => $position === 0 ? now()->subMinutes(3) : now(),
+            ]);
+            DB::table('inference_work')->where('id', $workId)->update(['call_id' => $call]);
+        }
+
+        $this->getJson('/imports/queue')->assertOk()
+            ->assertJsonPath('indexing.screening', 1)
+            ->assertJsonPath('indexing.blocked', 1);
+        $this->get('/imports/queue')->assertOk()->assertSee('A search request did not finish');
     }
 
     public function test_batch_formats_retries_and_private_collection_controls(): void

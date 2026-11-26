@@ -38,18 +38,19 @@
             (nextLink ?? document.querySelector('.site-menu > summary'))?.focus();
         });
 
-        return [kind, (finished, total, text, revision) => {
-            const complete = total > 0 && finished === total;
+        return [kind, (finished, total, text, revision, blocked = 0) => {
+            const canDismiss = total > 0 && finished + blocked === total;
             currentRevision = revision;
-            if (dismissedRevision !== null && (!complete || dismissedRevision !== revision)) saveDismissal(null);
+            if (dismissedRevision !== null && (!canDismiss || dismissedRevision !== revision)) saveDismissal(null);
             row.hidden = total === 0 || dismissedRevision !== null;
-            dismiss.hidden = !complete;
+            dismiss.hidden = !canDismiss;
             bar.max = Math.max(1, total);
             bar.value = finished;
             label.textContent = text;
         }];
     }));
     const indexingStages = document.querySelectorAll('[data-indexing-stage]');
+    const indexingBlocked = document.querySelector('[data-indexing-blocked]');
     const details = document.querySelector('[data-import-queue-files]');
     const count = document.querySelector('[data-import-queue-count]');
     if (details) endpoint.searchParams.set('details', '1');
@@ -67,16 +68,19 @@
 
             const status = await response.json();
             const text = `${status.finished} of ${status.total} files processed`;
-            const {screening, embedding, indexed, skipped} = status.indexing;
+            const {screening, embedding, indexed, skipped, blocked = 0} = status.indexing;
             const prepared = indexed + skipped;
-            const passageTotal = prepared + screening + embedding;
+            const passageTotal = prepared + screening + embedding + blocked;
+            const indexingText = `${prepared} of ${passageTotal} passages processed` + (blocked ? ` · ${blocked} blocked` : '');
+            const indexingRevision = [status.indexingRevision, indexed, skipped];
+            if (blocked) indexingRevision.push(blocked);
             updateProgress.files(status.finished, status.total, text, JSON.stringify([status.latestBatch, status.total]));
-            updateProgress.indexing(prepared, passageTotal, `${prepared} of ${passageTotal} passages processed`,
-                JSON.stringify([status.indexingRevision, indexed, skipped]));
+            updateProgress.indexing(prepared, passageTotal, indexingText, JSON.stringify(indexingRevision), blocked);
             updateVisibility();
 
             if (details) {
                 count.textContent = text;
+                indexingBlocked.hidden = blocked === 0;
                 for (const stage of indexingStages) {
                     stage.textContent = status.indexing[stage.dataset.indexingStage];
                 }

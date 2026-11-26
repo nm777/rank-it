@@ -112,7 +112,7 @@
                 Meaning-based search <span aria-hidden="true">·</span> <span data-import-progress-label></span>
                 <progress aria-label="Meaning-based search preparation" max="1" value="0"></progress>
             </a>
-            <button type="button" aria-label="Dismiss completed meaning-based search progress" hidden>×</button>
+            <button type="button" aria-label="Dismiss meaning-based search progress" hidden>×</button>
         </div>
     </div>
 @endauth
