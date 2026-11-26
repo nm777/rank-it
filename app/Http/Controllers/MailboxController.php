@@ -29,7 +29,7 @@ class MailboxController extends Controller
         $imports = DB::table('mailbox_imports')->where('user_id', $request->user()->id);
         $activeStatuses = ['Queued', 'Processing'];
         $activeBatches = (clone $imports)->select('batch_id')->whereIn('status', $activeStatuses);
-        $latestBatch = (clone $imports)->select('id')->whereColumn('id', 'batch_id')->latest()->orderByDesc('id')->limit(1);
+        $latestBatch = (clone $imports)->whereColumn('id', 'batch_id')->latest()->orderByDesc('id')->value('id');
         $queue = $imports->where(fn (Builder $query) => $query->whereIn('batch_id', $activeBatches)
             ->orWhere('batch_id', '=', $latestBatch));
 
@@ -37,13 +37,16 @@ class MailboxController extends Controller
             ->join('mail_passages', 'mail_passages.message_id', '=', 'mail_messages.id')
             ->join('inference_work', 'inference_work.passage_id', '=', 'mail_passages.id')
             ->where('mail_messages.user_id', $request->user()->id)
-            ->groupBy('inference_work.stage')->selectRaw('inference_work.stage, count(*) as total')->pluck('total', 'stage');
+            ->groupBy('inference_work.stage')
+            ->selectRaw('inference_work.stage, count(*) as total, max(inference_work.id) as latest_work')
+            ->get()->keyBy('stage');
         $indexing = [
-            'screening' => $stages->get('screen', 0),
-            'embedding' => $stages->get('embed', 0),
-            'indexed' => $stages->get('indexed', 0),
-            'skipped' => $stages->get('skipped', 0),
+            'screening' => $stages->get('screen')->total ?? 0,
+            'embedding' => $stages->get('embed')->total ?? 0,
+            'indexed' => $stages->get('indexed')->total ?? 0,
+            'skipped' => $stages->get('skipped')->total ?? 0,
         ];
+        $indexingRevision = $stages->max('latest_work');
 
         $headers = ['Cache-Control' => 'private, no-store'];
         if ($request->expectsJson() && ! $request->boolean('details')) {
@@ -51,7 +54,7 @@ class MailboxController extends Controller
             $total = $counts->sum();
             $finished = $total - $counts->only($activeStatuses)->sum();
 
-            return new JsonResponse(compact('total', 'finished', 'indexing'), headers: $headers);
+            return new JsonResponse(compact('total', 'finished', 'indexing', 'latestBatch', 'indexingRevision'), headers: $headers);
         }
 
         $files = $queue->latest()->orderBy('filename')->orderBy('id')
@@ -64,6 +67,8 @@ class MailboxController extends Controller
                 'total' => $total,
                 'finished' => $finished,
                 'indexing' => $indexing,
+                'latestBatch' => $latestBatch,
+                'indexingRevision' => $indexingRevision,
                 'details' => view('import-queue-files', compact('files'))->render(),
             ], headers: $headers);
         }

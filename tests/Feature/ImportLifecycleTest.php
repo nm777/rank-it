@@ -86,7 +86,9 @@ class ImportLifecycleTest extends TestCase
         $this->upload(['private.txt' => 'Private note']);
         $this->actingAs($owner);
         $emptyIndexing = ['screening' => 0, 'embedding' => 0, 'indexed' => 0, 'skipped' => 0];
-        $this->getJson('/imports/queue')->assertExactJson(['total' => 0, 'finished' => 0, 'indexing' => $emptyIndexing]);
+        $this->getJson('/imports/queue')->assertExactJson([
+            'total' => 0, 'finished' => 0, 'indexing' => $emptyIndexing, 'latestBatch' => null, 'indexingRevision' => null,
+        ]);
         $this->get('/imports/queue')->assertSee('No imports in the queue')->assertDontSee('private.txt');
 
         $batch = $this->upload(['finished.txt' => 'Finished note', 'processing.txt' => 'Processing note']);
@@ -95,9 +97,11 @@ class ImportLifecycleTest extends TestCase
         DB::table('mailbox_imports')->where('batch_id', $batch)->where('filename', 'processing.txt')
             ->update(['status' => 'Processing']);
         $this->travel(1)->seconds();
-        $this->upload(['waiting.txt' => 'Waiting note']);
+        $latestBatch = $this->upload(['waiting.txt' => 'Waiting note']);
 
-        $this->getJson('/imports/queue')->assertExactJson(['total' => 3, 'finished' => 1, 'indexing' => $emptyIndexing]);
+        $this->getJson('/imports/queue')->assertExactJson([
+            'total' => 3, 'finished' => 1, 'indexing' => $emptyIndexing, 'latestBatch' => $latestBatch, 'indexingRevision' => null,
+        ]);
         $this->get('/imports/queue')->assertSee('1 of 3 files processed')
             ->assertSee('finished.txt')->assertSee('processing.txt')->assertSee('waiting.txt')
             ->assertSee('Processing')->assertSee('Queued')->assertSee('1 imported')->assertDontSee('private.txt');
@@ -108,9 +112,11 @@ class ImportLifecycleTest extends TestCase
         config(['inference.cap' => 0]);
         $this->drain();
 
-        $this->getJson('/imports/queue')->assertExactJson(['total' => 1, 'finished' => 1, 'indexing' => [
+        $indexingRevision = DB::table('inference_work')->whereIn('passage_id', DB::table('mail_passage_sources')
+            ->where('user_id', $owner->id)->select('id'))->max('id');
+        $this->getJson('/imports/queue')->assertJson(['total' => 1, 'finished' => 1, 'indexing' => [
             'screening' => 2, 'embedding' => 0, 'indexed' => 0, 'skipped' => 0,
-        ]]);
+        ], 'latestBatch' => $latestBatch, 'indexingRevision' => $indexingRevision]);
         $this->get('/imports/queue')->assertSee('waiting.txt')->assertDontSee('finished.txt');
         DB::table('inference_work')->whereIn('passage_id', DB::table('mail_passage_sources')->where('user_id', $owner->id)
             ->where('wording', 'Processing note')->select('id'))->update(['stage' => 'skipped']);
@@ -123,7 +129,7 @@ class ImportLifecycleTest extends TestCase
         $latestWork->update(['stage' => 'indexed']);
         $this->getJson('/imports/queue?details=1')->assertJsonPath('indexing', [
             'screening' => 0, 'embedding' => 0, 'indexed' => 1, 'skipped' => 1,
-        ]);
+        ])->assertJsonPath('indexingRevision', $indexingRevision);
     }
 
     public function test_batch_formats_retries_and_private_collection_controls(): void

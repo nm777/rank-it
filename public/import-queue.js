@@ -2,26 +2,47 @@
     const progress = document.querySelector('[data-import-progress]');
     if (!progress) return;
 
+    const endpoint = new URL(progress.dataset.importProgress, document.baseURI);
     const rows = [...progress.querySelectorAll('[data-import-progress-row]')];
     const updateVisibility = () => { progress.hidden = rows.every(row => row.hidden); };
     const updateProgress = Object.fromEntries(rows.map(row => {
         const bar = row.querySelector('progress');
         const label = row.querySelector('[data-import-progress-label]');
         const dismiss = row.querySelector('button');
-        let dismissedTotal = null;
+        const kind = row.dataset.importProgressRow;
+        const storageKey = `rank-it:${endpoint.pathname}:${progress.dataset.progressOwner}:${kind}:dismissed`;
+        let dismissedRevision = null;
+        let currentRevision = null;
+
+        try {
+            dismissedRevision = localStorage.getItem(storageKey);
+        } catch {
+            // Dismissal still works on this page if storage is unavailable.
+        }
+
+        function saveDismissal(revision) {
+            dismissedRevision = revision;
+            try {
+                if (revision === null) localStorage.removeItem(storageKey);
+                else localStorage.setItem(storageKey, revision);
+            } catch {
+                // Keep the in-page dismissal.
+            }
+        }
 
         dismiss.addEventListener('click', () => {
-            dismissedTotal = bar.max;
+            saveDismissal(currentRevision);
             row.hidden = true;
             updateVisibility();
             const nextLink = progress.querySelector('[data-import-progress-row]:not([hidden]) a');
             (nextLink ?? document.querySelector('.site-menu > summary'))?.focus();
         });
 
-        return [row.dataset.importProgressRow, (finished, total, text) => {
+        return [kind, (finished, total, text, revision) => {
             const complete = total > 0 && finished === total;
-            if (!complete || dismissedTotal !== total) dismissedTotal = null;
-            row.hidden = total === 0 || dismissedTotal !== null;
+            currentRevision = revision;
+            if (dismissedRevision !== null && (!complete || dismissedRevision !== revision)) saveDismissal(null);
+            row.hidden = total === 0 || dismissedRevision !== null;
             dismiss.hidden = !complete;
             bar.max = Math.max(1, total);
             bar.value = finished;
@@ -31,7 +52,6 @@
     const indexingStages = document.querySelectorAll('[data-indexing-stage]');
     const details = document.querySelector('[data-import-queue-files]');
     const count = document.querySelector('[data-import-queue-count]');
-    const endpoint = new URL(progress.dataset.importProgress, document.baseURI);
     if (details) endpoint.searchParams.set('details', '1');
 
     let checking = false;
@@ -50,8 +70,9 @@
             const {screening, embedding, indexed, skipped} = status.indexing;
             const prepared = indexed + skipped;
             const passageTotal = prepared + screening + embedding;
-            updateProgress.files(status.finished, status.total, text);
-            updateProgress.indexing(prepared, passageTotal, `${prepared} of ${passageTotal} passages processed`);
+            updateProgress.files(status.finished, status.total, text, JSON.stringify([status.latestBatch, status.total]));
+            updateProgress.indexing(prepared, passageTotal, `${prepared} of ${passageTotal} passages processed`,
+                JSON.stringify([status.indexingRevision, indexed, skipped]));
             updateVisibility();
 
             if (details) {

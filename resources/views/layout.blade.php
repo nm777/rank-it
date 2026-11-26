@@ -99,7 +99,7 @@
     @endauth
 </header>
 @auth
-    <div class="import-progress" data-import-progress="{{ route('imports.queue') }}" hidden>
+    <div class="import-progress" data-import-progress="{{ route('imports.queue') }}" data-progress-owner="{{ auth()->id() }}" hidden>
         <div class="import-progress-row" data-import-progress-row="files" hidden>
             <a href="{{ route('imports.queue') }}">
                 File import <span aria-hidden="true">·</span> <span data-import-progress-label></span>
