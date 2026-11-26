@@ -3,12 +3,15 @@
 namespace App\Jobs;
 
 use App\Inference\Budget;
+use App\Inference\ProviderResponseException;
 use App\Inference\Providers;
 use App\Inference\Ratings;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class IndexPassage implements ShouldQueue
 {
@@ -71,26 +74,36 @@ class IndexPassage implements ShouldQueue
         }
 
         try {
-            if ($work->stage === 'screen') {
-                [$keep, $tokens] = $providers->screen($work->wording, $work->context);
-                $updates = ['stage' => $keep ? 'embed' : 'skipped'];
-                $cost = $tokens * Providers::JEV_RATE;
-            } else {
-                [$vector, $tokens] = $providers->embed($work->wording);
-                $updates = ['stage' => 'indexed', 'embedding' => json_encode($vector, JSON_THROW_ON_ERROR),
-                    'configuration' => $providers->configuration()];
-                $cost = $tokens * $providers->rate();
-            }
-        } catch (\Throwable $error) {
+            [$result, $tokens] = $work->stage === 'screen'
+                ? $providers->screen($work->wording, $work->context)
+                : $providers->embed($work->wording);
+        } catch (ConnectionException|RequestException|ProviderResponseException $error) {
             // TypeSafe documents rejected requests as unbilled. Other outcomes may have been charged.
             if ($work->stage === 'screen' && $error instanceof RequestException && $error->response->clientError()) {
                 DB::transaction(function () use ($budget, $query, $work) {
                     $budget->settle($work->call_id, 0, 0);
                     $query->where('call_id', $work->call_id)->update(['call_id' => null]);
                 });
+            } else {
+                Log::warning('Passage indexing is blocked pending inference call reconciliation.', [
+                    'work_id' => $work->id,
+                    'call_id' => $work->call_id,
+                    'stage' => $work->stage,
+                    'error_type' => $error::class,
+                    'http_status' => $error instanceof RequestException ? $error->response->status() : null,
+                ]);
             }
 
             return;
+        }
+
+        if ($work->stage === 'screen') {
+            $updates = ['stage' => $result ? 'embed' : 'skipped'];
+            $cost = $tokens * Providers::JEV_RATE;
+        } else {
+            $updates = ['stage' => 'indexed', 'embedding' => json_encode($result, JSON_THROW_ON_ERROR),
+                'configuration' => $providers->configuration()];
+            $cost = $tokens * $providers->rate();
         }
 
         DB::transaction(function () use ($query, $updates, $work, $cost, $tokens, $budget) {

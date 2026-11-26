@@ -11,9 +11,12 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Process\Process;
 use Tests\TestCase;
+use UnexpectedValueException;
 
 class InferenceTest extends TestCase
 {
@@ -168,9 +171,11 @@ class InferenceTest extends TestCase
         $this->assertDatabaseHas('inference_budget', ['committed' => 60]);
     }
 
-    public function test_capture_pauses_resumes_and_keeps_ambiguous_reservations(): void
+    #[DataProvider('ambiguousEmbeddingResponses')]
+    public function test_capture_pauses_resumes_and_keeps_ambiguous_reservations(int $status): void
     {
-        Http::fake(['embedding.test/*' => Http::response([], 503)]);
+        Http::fake(['embedding.test/*' => Http::response([], $status)]);
+        Log::spy();
         config(['inference.cap' => 1000, 'inference.reserve' => 50]);
         $this->actingAs(User::factory()->create())->post('/memories', ['wording' => 'Synthetic capture']);
         $work = DB::table('inference_work')->sole();
@@ -190,8 +195,40 @@ class InferenceTest extends TestCase
         $this->assertDatabaseHas('inference_budget', ['committed' => 1100]);
         $call = DB::table('inference_work')->value('call_id');
         $this->assertNotNull($call);
+        $this->assertDatabaseHas('inference_calls', ['id' => $call, 'actual' => null]);
+        Log::shouldHaveReceived('warning')->once()->with(
+            'Passage indexing is blocked pending inference call reconciliation.',
+            \Mockery::subset(['work_id' => $work->id, 'call_id' => $call, 'stage' => 'embed']),
+        );
         $this->artisan("inference:reconcile $call 10")->assertSuccessful();
         $this->artisan("inference:reconcile $call 10")->assertFailed();
         $this->assertDatabaseHas('inference_budget', ['committed' => 110]);
+    }
+
+    public static function ambiguousEmbeddingResponses(): array
+    {
+        return [
+            'provider unavailable' => [503],
+            'malformed success response' => [200],
+        ];
+    }
+
+    public function test_unexpected_indexing_exception_fails_the_queued_job_and_keeps_its_reservation(): void
+    {
+        Http::fake(['embedding.test/*' => fn () => throw new UnexpectedValueException('Indexing bug fixture')]);
+        $this->actingAs(User::factory()->create())->post('/memories', ['wording' => 'Synthetic capture'])
+            ->assertRedirect('/');
+        $work = DB::table('inference_work')->sole();
+
+        $this->artisan('queue:work database --stop-when-empty --sleep=0 --tries=1')->assertSuccessful();
+
+        $failure = DB::table('failed_jobs')->sole();
+        $this->assertStringContainsString('UnexpectedValueException: Indexing bug fixture', $failure->exception);
+        $call = DB::table('inference_work')->where('id', $work->id)->value('call_id');
+        $this->assertNotNull($call);
+        $this->assertDatabaseHas('inference_calls', ['id' => $call, 'reserved' => 1000, 'actual' => null]);
+        $this->assertDatabaseHas('inference_budget', ['committed' => 1000]);
+        $this->artisan('inference:resume')->assertSuccessful();
+        $this->assertDatabaseEmpty('jobs');
     }
 }

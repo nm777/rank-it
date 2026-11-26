@@ -3,7 +3,6 @@
 namespace App\Inference;
 
 use Illuminate\Support\Facades\Http;
-use UnexpectedValueException;
 
 class Providers
 {
@@ -86,7 +85,7 @@ class Providers
         foreach ($questions as $name => $question) {
             $probability = data_get($response, "answers.$name.noul");
             if (! is_numeric($probability) || $probability < 0 || $probability > 1) {
-                throw new UnexpectedValueException('Invalid Jev decision.');
+                throw new ProviderResponseException('Invalid Jev decision.');
             }
             $scores[$name] = $probability;
         }
@@ -105,11 +104,11 @@ class Providers
         ])->throw()->json();
         $vector = data_get($response, 'data.0.embedding');
         if (! is_array($vector) || ! array_is_list($vector) || count($vector) !== (int) $this->embedding['dimensions']) {
-            throw new UnexpectedValueException('Invalid embedding dimensions.');
+            throw new ProviderResponseException('Invalid embedding dimensions.');
         }
         foreach ($vector as $value) {
             if ((! is_float($value) && ! is_int($value)) || ! is_finite($value)) {
-                throw new UnexpectedValueException('Invalid embedding coordinate.');
+                throw new ProviderResponseException('Invalid embedding coordinate.');
             }
         }
 
@@ -119,7 +118,7 @@ class Providers
     private function tokens(mixed $tokens): int
     {
         if (! is_int($tokens) || $tokens < 0) {
-            throw new UnexpectedValueException('Invalid provider usage.');
+            throw new ProviderResponseException('Invalid provider usage.');
         }
 
         return $tokens;
