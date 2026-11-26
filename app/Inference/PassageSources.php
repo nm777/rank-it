@@ -16,6 +16,8 @@ class PassageSources
             ->where('user_id', $owner)
             ->whereNull('source_id')
             ->selectRaw("distinct on ($quoteGroup) *")
+            ->addSelect(['document_location' => DB::table('mail_passages')
+                ->select('document_location')->whereColumn('id', 'mail_passage_sources.id')])
             ->orderByRaw($quoteGroup)
             ->orderBy('id');
     }

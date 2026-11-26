@@ -352,6 +352,64 @@ class ImportLifecycleTest extends TestCase
         $this->assertDatabaseCount('mail_messages', 2);
     }
 
+    public function test_pdf_table_cells_keep_their_headers_in_results_and_can_be_reindexed_from_retained_files(): void
+    {
+        $owner = User::factory()->create();
+        $this->actingAs($owner);
+        config(['inference.cap' => 0, 'inference.rate' => 1]);
+        $pdf = file_get_contents(base_path('tests/Fixtures/invoice-table.pdf'));
+        $this->upload(['invoice.pdf' => $pdf]);
+        $this->drain();
+
+        $derived = DB::table('mail_passages')->whereNotNull('document_location');
+        $price = 'Page 1 | Row: Copper fitting | Column: Unit price | Value: 12.50';
+        $this->assertDatabaseHas('mail_passages', ['wording' => $price, 'document_location' => 'Page 1']);
+        $this->assertSame(3, $derived->count());
+        $this->post('/search', ['wording' => 'Copper fitting | Column: Unit price'])
+            ->assertOk()->assertSee($price)->assertSee('Download original');
+        $this->post('/input', ['wording' => 'What was the unit price for the copper fitting?', 'intent' => 'ask'])
+            ->assertOk()->assertSee($price)->assertSee('Download original');
+
+        $this->upload(['invoice.pdf' => $pdf]);
+        $this->drain();
+        $this->assertDatabaseCount('mail_messages', 1);
+        $this->assertSame(3, $derived->count());
+
+        $derived->delete();
+        $this->artisan('documents:index-tables', ['owner' => $owner->id])->assertSuccessful();
+        $this->drain();
+        $this->assertSame(3, $derived->count());
+    }
+
+    public function test_spreadsheet_table_keeps_blank_cell_positions_and_formatted_date_headers(): void
+    {
+        $this->actingAs(User::factory()->create());
+        config(['inference.cap' => 0, 'inference.rate' => 1]);
+        $workbook = new Spreadsheet;
+        $sheet = $workbook->getActiveSheet()->setTitle('Dispatch');
+        $sheet->setCellValue('B2', 'Job site');
+        $sheet->setCellValue('C2', 46335);
+        $sheet->setCellValue('D2', 46336);
+        $sheet->getStyle('C2:D2')->getNumberFormat()->setFormatCode('yyyy-mm-dd');
+        $sheet->setCellValue('B3', 'North yard');
+        $sheet->setCellValue('D3', 'Jordan Lee');
+        $path = tempnam(sys_get_temp_dir(), 'xlsx');
+        try {
+            IOFactory::createWriter($workbook, IOFactory::WRITER_XLSX)->save($path);
+            $this->upload(['dispatch.xlsx' => file_get_contents($path)]);
+        } finally {
+            unlink($path);
+            $workbook->disconnectWorksheets();
+        }
+        $this->drain();
+
+        $this->assertDatabaseHas('mail_passages', [
+            'wording' => 'Sheet Dispatch | Row: North yard | Column: 2026-11-10 | Value: Jordan Lee',
+            'document_location' => 'Sheet Dispatch',
+        ]);
+        $this->assertSame(1, DB::table('mail_passages')->whereNotNull('document_location')->count());
+    }
+
     private function workbook(string $format, string $label): string
     {
         $workbook = new Spreadsheet;

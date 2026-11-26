@@ -87,7 +87,7 @@ class ImportMailbox implements ShouldQueue
             ->where('files.user_id', $this->owner)
             ->where('files.filename', $filename)
             ->when(isset($this->restoreMessage), fn ($query) => $query->where('messages.id', $this->restoreMessage))
-            ->whereRaw('(select string_agg(wording, chr(10) order by ordinal) from mail_passages where message_id = messages.id) = ?', [$body])
+            ->whereRaw('(select string_agg(wording, chr(10) order by ordinal) from mail_passages where message_id = messages.id and document_location is null) = ?', [$body])
             ->get(['messages.id as message_id', 'files.id as file_id'])
             ->groupBy('message_id');
 
@@ -137,6 +137,9 @@ class ImportMailbox implements ShouldQueue
         }
         DB::table('mailbox_entries')->insert(['import_id' => $this->batch, 'message_id' => $id,
             'ordinal' => $ordinal, 'attachments' => json_encode($attachments, JSON_THROW_ON_ERROR)]);
+        if (ImportFile::supportsTables($message['subject'] ?? '') && ! array_key_exists('parent_identity', $message)) {
+            IndexDocumentTables::dispatch($this->owner, $this->batch);
+        }
         if ($created) {
             $this->refreshReplies($message['identity']);
         }

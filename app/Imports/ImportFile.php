@@ -6,10 +6,12 @@ use DOMDocument;
 use DOMXPath;
 use Illuminate\Process\Exceptions\ProcessTimedOutException;
 use Illuminate\Support\Facades\Process;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Exception as SpreadsheetException;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Reader\IReader;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
 use ZipArchive;
 
 class ImportFile
@@ -21,6 +23,11 @@ class ImportFile
     public static function isDocument(string $filename): bool
     {
         return in_array(strtolower(pathinfo($filename, PATHINFO_EXTENSION)), self::DOCUMENT_EXTENSIONS, true);
+    }
+
+    public static function supportsTables(string $filename): bool
+    {
+        return in_array(strtolower(pathinfo($filename, PATHINFO_EXTENSION)), ['pdf', 'xlsx', 'xls'], true);
     }
 
     public function read(Mailbox $mailbox, $stream, string $path, object $file): array
@@ -98,7 +105,17 @@ class ImportFile
             : null;
     }
 
-    private function excel(string $path, string $extension): ?string
+    public function tableCells(string $filename, string $path): iterable
+    {
+        return match (strtolower(pathinfo($filename, PATHINFO_EXTENSION))) {
+            'pdf' => (new PdfTableCells)->tables($path),
+            'xlsx' => $this->excel($path, 'xlsx', tables: true) ?? [],
+            'xls' => $this->excel($path, 'xls', tables: true) ?? [],
+            default => [],
+        };
+    }
+
+    private function excel(string $path, string $extension, bool $tables = false): string|array|null
     {
         if ($extension === 'xlsx' && ! $this->hasBoundedArchiveSize($path)) {
             return null;
@@ -109,7 +126,8 @@ class ImportFile
             if (! $reader->canRead($path)) {
                 return null;
             }
-            $workbook = $reader->load($path, IReader::READ_DATA_ONLY | IReader::IGNORE_EMPTY_CELLS);
+            $flags = IReader::IGNORE_EMPTY_CELLS | ($tables ? 0 : IReader::READ_DATA_ONLY);
+            $workbook = $reader->load($path, $flags);
         } catch (SpreadsheetException) {
             return null;
         }
@@ -119,6 +137,7 @@ class ImportFile
             $bytes = 0;
             foreach ($workbook->getWorksheetIterator() as $sheet) {
                 $rows = [];
+                $leftmostColumn = PHP_INT_MAX;
                 foreach ($sheet->getCoordinates() as $coordinate) {
                     $cell = $sheet->getCell($coordinate);
                     $value = $cell->isFormula() ? $cell->getOldCalculatedValue() : $cell->getValue();
@@ -133,9 +152,33 @@ class ImportFile
                     if ($bytes > self::MAX_DOCUMENT_BYTES) {
                         return null;
                     }
-                    $rows[$cell->getRow()][] = $text;
+                    if ($tables) {
+                        if (is_numeric($value) && Date::isDateTime($cell, $value)) {
+                            $text = Date::excelToDateTimeObject((float) $value)->format('Y-m-d');
+                        }
+                        $column = Coordinate::columnIndexFromString($cell->getColumn());
+                        $leftmostColumn = min($leftmostColumn, $column);
+                        $rows[$cell->getRow()][$column] = $text;
+                    } else {
+                        $rows[$cell->getRow()][] = $text;
+                    }
                 }
-                if ($rows !== []) {
+                if ($tables && $rows !== []) {
+                    foreach ($sheet->getMergeCells() as $range) {
+                        [[$startColumn, $startRow], [$endColumn, $endRow]] = Coordinate::rangeBoundaries($range);
+                        if ($startColumn !== $leftmostColumn || $endColumn !== $leftmostColumn
+                            || ! isset($rows[$startRow][$leftmostColumn])) {
+                            continue;
+                        }
+                        foreach ($rows as $rowNumber => $values) {
+                            if ($rowNumber > $startRow && $rowNumber <= $endRow && ! isset($values[$leftmostColumn])) {
+                                $rows[$rowNumber][$leftmostColumn] = $rows[$startRow][$leftmostColumn];
+                            }
+                        }
+                    }
+                    ksort($rows, SORT_NUMERIC);
+                    $sheets[] = ['location' => 'Sheet '.$sheet->getTitle(), 'rows' => $rows, 'rowHeader' => $leftmostColumn];
+                } elseif ($rows !== []) {
                     $sheets[] = $sheet->getTitle()."\n".implode("\n", array_map(
                         static fn (array $row): string => implode("\t", $row),
                         $rows,
@@ -143,7 +186,7 @@ class ImportFile
                 }
             }
 
-            return implode("\n\n", $sheets);
+            return $tables ? $sheets : implode("\n\n", $sheets);
         } finally {
             $workbook->disconnectWorksheets();
         }

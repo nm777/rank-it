@@ -1,14 +1,41 @@
 <?php
 
+use App\Imports\DocumentOriginals;
+use App\Imports\ImportFile;
 use App\Inference\Budget;
 use App\Inference\Providers;
+use App\Inference\RebuildIndex;
 use App\Inference\WorkTransitions;
+use App\Jobs\IndexDocumentTables;
 use App\Jobs\IndexPassage;
 use App\Models\User;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+
+Artisan::command('documents:index-tables {owner : Account ID}', function (string $owner): int {
+    if (! ctype_digit($owner) || ! User::query()->whereKey($owner)->exists()) {
+        $this->error('Unknown account.');
+
+        return 1;
+    }
+
+    $queued = 0;
+    DocumentOriginals::files((int) $owner)
+        ->select('files.id', 'files.filename')
+        ->whereNotExists(fn ($passages) => $passages->selectRaw('1')->from('mail_passages')
+            ->whereColumn('message_id', 'entries.message_id')->whereNotNull('document_location'))
+        ->eachById(function ($file) use ($owner, &$queued): void {
+            if (ImportFile::supportsTables($file->filename) && DocumentOriginals::available((int) $owner, $file)) {
+                IndexDocumentTables::dispatch((int) $owner, $file->id);
+                $queued++;
+            }
+        }, column: 'files.id', alias: 'id');
+    $this->info("Queued $queued retained files for table extraction.");
+
+    return 0;
+})->purpose('Extract tables from an account’s retained document originals');
 
 Artisan::command('pilot:invite {email}', function (string $email): int {
     $email = Str::lower(trim($email));
@@ -118,7 +145,7 @@ Artisan::command('inference:recheck {batch} {--status}', function (string $batch
     return 0;
 })->purpose('Recheck screened-out passages in one batch or report aggregate results');
 
-Artisan::command('inference:rebuild {profile}', function (string $profile, App\Inference\RebuildIndex $index, Providers $provider, Budget $budget) {
+Artisan::command('inference:rebuild {profile}', function (string $profile, RebuildIndex $index, Providers $provider, Budget $budget) {
     if (! in_array($profile, ['default', 'alternate'], true) || ! $index->run($profile, $provider, $budget)) {
         $this->error('Replacement incomplete. Check configuration, reservations and budget, then retry.');
 
