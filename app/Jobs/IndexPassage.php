@@ -38,7 +38,7 @@ class IndexPassage implements ShouldQueue
             if ($work->contextOnly) {
                 $work->stage = 'screen';
             } else {
-                Ratings::process($work, $budget);
+                Ratings::process($work);
             }
             if (! in_array($work->stage, ['screen', 'embed'], true)) {
                 return null;

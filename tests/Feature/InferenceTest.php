@@ -79,8 +79,40 @@ class InferenceTest extends TestCase
         $this->assertSame('[1,2]', $indexed->embedding);
         $this->assertSame('fixture', json_decode($indexed->configuration)->model);
         $this->assertDatabaseHas('inference_budget', ['committed' => 1692]);
+        $this->assertDatabaseCount('inference_calls', 3);
         $this->get('/profile/usage')->assertOk()->assertSee('$0.000001692 USD')->assertSee('3 recorded AI calls');
         $this->post('/search', ['wording' => 'Agreed.'])->assertSee('Agreed.');
+    }
+
+    public function test_passage_ratings_are_processed_once_with_negative_background_headroom(): void
+    {
+        config(['inference.cap' => 100, 'inference.reserve' => 20]);
+        $owner = User::factory()->create();
+        $messageId = DB::table('mail_messages')->insertGetId([
+            'user_id' => $owner->id,
+            'identity' => hash('sha256', 'rating fixture'),
+        ]);
+        $passageId = DB::table('mail_passages')->insertGetId([
+            'message_id' => $messageId,
+            'ordinal' => 0,
+            'wording' => 'Lemon cake is 9/10.',
+        ]);
+        $workId = DB::table('inference_work')->insertGetId(['passage_id' => $passageId, 'stage' => 'embed']);
+        $answerCall = app(Budget::class)->reserve('answer', 90, $owner->id);
+        $this->assertNotNull($answerCall);
+        Http::fake();
+
+        $this->runWork($workId);
+
+        $this->assertDatabaseHas('ratings', ['passage_id' => $passageId, 'subject' => 'Lemon cake', 'score' => 9, 'scale' => 10]);
+        $this->assertDatabaseHas('inference_work', ['id' => $workId, 'ratings_processed' => true, 'stage' => 'embed', 'call_id' => null]);
+
+        $this->runWork($workId);
+
+        $this->assertDatabaseCount('ratings', 1);
+        $this->assertDatabaseCount('inference_calls', 1);
+        $this->assertDatabaseHas('inference_budget', ['id' => 1, 'committed' => 90]);
+        Http::assertNothingSent();
     }
 
     public function test_queue_resumes_capture_after_edit_using_only_current_wording(): void

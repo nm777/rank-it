@@ -64,12 +64,9 @@ class Ratings
     }
 
     // Called with the work row locked. Deterministic extraction has zero marginal inference cost.
-    public static function process(object $work, Budget $budget): void
+    public static function process(object $work): void
     {
         if (! $work->passage_id || $work->ratings_processed || ! in_array($work->stage, ['embed', 'indexed'])) {
-            return;
-        }
-        if (! ($call = $budget->reserve('ratings', 0))) {
             return;
         }
         $p = DB::table('mail_passage_sources')->find($work->passage_id);
@@ -81,6 +78,5 @@ class Ratings
             $agreement = mb_strtolower($m[1] ?? '');
         }
         DB::table('inference_work')->where('id', $work->id)->update(['ratings_processed' => true, 'agreement' => $agreement]);
-        $budget->settle($call, 0, 0);
     }
 }
