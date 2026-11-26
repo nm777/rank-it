@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use RuntimeException;
 use Tests\TestCase;
 use ZipArchive;
@@ -84,6 +86,64 @@ class ImportLifecycleTest extends TestCase
         $this->delete("/imports/$second")->assertRedirect();
         $this->assertDatabaseCount('mail_messages', 1);
         $this->assertSame([], Storage::disk('import-staging')->allFiles());
+    }
+
+    public function test_document_import_makes_readable_files_searchable_and_reports_unreadable_files(): void
+    {
+        $this->actingAs(User::factory()->create());
+        config(['inference.cap' => 0]);
+
+        $batch = $this->upload([
+            'document.PDF' => file_get_contents(base_path('tests/Fixtures/import.pdf')),
+            'broken.pdf' => '%PDF-1.4',
+            'workbook.xlsx' => $this->workbook(IOFactory::WRITER_XLSX, 'Cedar'),
+            'legacy.xls' => $this->workbook(IOFactory::WRITER_XLS, 'Maple'),
+        ]);
+        $this->drain();
+
+        foreach (['document.PDF', 'workbook.xlsx', 'legacy.xls'] as $filename) {
+            $this->assertDatabaseHas('mailbox_imports', ['batch_id' => $batch, 'filename' => $filename, 'status' => 'Imported']);
+        }
+        $this->assertDatabaseHas('mailbox_imports', ['batch_id' => $batch, 'filename' => 'broken.pdf', 'status' => 'Could not import', 'unreadable' => 1]);
+        foreach (['Evergreen PDF fixture', 'Cedar delivery schedule', 'Maple delivery schedule'] as $wording) {
+            $this->post('/search', ['wording' => $wording])->assertSee('#passage-');
+        }
+        $this->assertDatabaseHas('mail_passages', ['wording' => "Logistics\nCedar delivery schedule\t0"]);
+        $this->assertDatabaseHas('mail_passages', ['wording' => "Logistics\nMaple delivery schedule\t0"]);
+        $this->assertSame([], Storage::disk('import-staging')->allFiles());
+    }
+
+    private function workbook(string $format, string $label): string
+    {
+        $workbook = new Spreadsheet;
+        $workbook->getActiveSheet()->setCellValue('A1', "$label inventory");
+        $sheet = $workbook->createSheet()->setTitle('Logistics');
+        $sheet->setCellValue('A1', "$label delivery schedule");
+        $sheet->setCellValue('B1', 0);
+        $path = tempnam(sys_get_temp_dir(), 'excel');
+
+        try {
+            IOFactory::createWriter($workbook, $format)->save($path);
+
+            return file_get_contents($path);
+        } finally {
+            unlink($path);
+            $workbook->disconnectWorksheets();
+        }
+    }
+
+    public function test_invalid_excel_files_are_reported_as_unreadable(): void
+    {
+        $this->actingAs(User::factory()->create());
+        $batch = $this->upload(['broken.xlsx' => 'invalid workbook', 'broken.xls' => 'invalid workbook']);
+
+        $this->drain();
+
+        foreach (['broken.xlsx', 'broken.xls'] as $filename) {
+            $this->assertDatabaseHas('mailbox_imports', ['batch_id' => $batch, 'filename' => $filename,
+                'status' => 'Could not import', 'unreadable' => 1]);
+        }
+        $this->assertDatabaseCount('mail_messages', 0);
     }
 
     public function test_batch_removal_commits_cleanup_for_each_file_and_retries_a_deletion_failure(): void

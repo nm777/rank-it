@@ -9,6 +9,7 @@
         "ext-zip": "*",
         "laravel/framework": "^13.0",
         "laravel/tinker": "^3.0",
+        "phpoffice/phpspreadsheet": "^5.12",
         "zbateson/mail-mime-parser": "^4"
     },
     "require-dev": {
