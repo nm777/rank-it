@@ -14,11 +14,13 @@ class RebuildIndex
             return false;
         }
         try {
-            if (DB::table('embedding_index_state')->value('profile') === $profile) {
-                return true;
-            }
             $configuration = $provider->configuration();
             $eligible = DB::table('inference_work as w')->where('w.stage', 'indexed');
+            if (DB::table('embedding_index_state')->value('profile') === $profile
+                && ! (clone $eligible)->whereRaw('w.configuration is distinct from ?::jsonb', [$configuration])->exists()) {
+                return true;
+            }
+
             $ready = DB::table('replacement_embeddings')->whereRaw('configuration = ?::jsonb', [$configuration])
                 ->whereNotNull('embedding')->select('work_id');
             foreach ((clone $eligible)->whereNotIn('w.id', $ready)->select('w.id')->lazyById(100, 'w.id', 'id') as $item) {
@@ -49,14 +51,15 @@ class RebuildIndex
                 });
             }
 
-            return DB::transaction(function () use ($profile, $eligible, $ready) {
+            return DB::transaction(function () use ($profile, $configuration, $eligible, $ready) {
                 DB::table('embedding_index_state')->lockForUpdate()->first();
                 if (DB::table('inference_work')->where('stage', 'embed')->whereNotNull('call_id')->exists()
                     || (clone $eligible)->whereNotIn('w.id', $ready)->exists()) {
                     return false;
                 }
                 DB::statement("update inference_work w set embedding = r.embedding, configuration = r.configuration
-                    from replacement_embeddings r where w.id = r.work_id and w.stage = 'indexed'");
+                    from replacement_embeddings r where w.id = r.work_id and w.stage = 'indexed'
+                    and r.configuration = ?::jsonb and r.embedding is not null", [$configuration]);
                 DB::table('embedding_index_state')->update(['profile' => $profile]);
                 DB::table('replacement_embeddings')->delete();
 

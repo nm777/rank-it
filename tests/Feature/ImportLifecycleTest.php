@@ -153,4 +153,49 @@ class ImportLifecycleTest extends TestCase
         $this->post('/input', ['intent' => 'ask', 'wording' => 'Unrelated?'])->assertSee('Second fixture');
         $this->assertSame(['First fixture', 'Second fixture', 'Unrelated?'], $external);
     }
+
+    public function test_rebuild_replaces_incompatible_vectors_under_the_same_profile(): void
+    {
+        $requests = [];
+        Http::fake([
+            'https://api.typesafe.ai/v1/systemone' => Http::response([
+                'answers' => ['remember' => ['noul' => 1]], 'usage' => ['input_tokens' => 1],
+            ]),
+            'http://local.test/embeddings' => function (Request $request) use (&$requests) {
+                $requests[] = [$request['model'], $request['input']];
+
+                return Http::response(['data' => [['embedding' => match ($request['model']) {
+                    'local' => [1, 0],
+                    'intermediate' => [0, 1],
+                    'replacement' => [-1, 0],
+                }]], 'usage' => ['prompt_tokens' => 1]]);
+            },
+        ]);
+        $this->actingAs(User::factory()->create());
+        $this->upload(['first.txt' => 'First fixture', 'second.md' => 'Second fixture']);
+        $this->drain();
+        $requests = [];
+        $indexed = DB::table('inference_work')->where('stage', 'indexed')->orderBy('id');
+        $original = $indexed->get(['embedding', 'configuration'])->toJson();
+        $spent = DB::table('inference_budget')->value('committed');
+        config(['inference.model' => 'intermediate', 'inference.rate' => 1, 'inference.cap' => $spent + 100]);
+
+        $this->artisan('inference:rebuild default')->assertExitCode(1);
+        $this->assertSame($original, $indexed->get(['embedding', 'configuration'])->toJson());
+        $this->assertDatabaseCount('replacement_embeddings', 1);
+        $this->assertSame([['intermediate', 'First fixture']], $requests);
+
+        config(['inference.model' => 'replacement', 'inference.cap' => $spent + 500]);
+        $this->artisan('inference:rebuild default')->assertSuccessful();
+        $this->artisan('inference:rebuild default')->assertSuccessful();
+
+        $this->assertSame([
+            ['intermediate', 'First fixture'],
+            ['replacement', 'First fixture'],
+            ['replacement', 'Second fixture'],
+        ], $requests);
+        $this->assertSame(['[-1,0]', '[-1,0]'], $indexed->pluck('embedding')->all());
+        $this->assertSame(['replacement', 'replacement'], $indexed->selectRaw("configuration->>'model' as model")->get()->pluck('model')->all());
+        $this->assertDatabaseCount('replacement_embeddings', 0);
+    }
 }
