@@ -18,10 +18,15 @@ class ImportFile
 
     private const int MAX_DOCUMENT_BYTES = 16 * 1024 * 1024;
 
+    public static function isDocument(string $filename): bool
+    {
+        return in_array(strtolower(pathinfo($filename, PATHINFO_EXTENSION)), self::DOCUMENT_EXTENSIONS, true);
+    }
+
     public function read(Mailbox $mailbox, $stream, string $path, object $file): array
     {
         $extension = strtolower(pathinfo($file->filename, PATHINFO_EXTENSION));
-        if ($extension !== 'eml' && ! in_array($extension, self::DOCUMENT_EXTENSIONS, true)) {
+        if ($extension !== 'eml' && ! self::isDocument($file->filename)) {
             [$raw, $next, $end] = $mailbox->read($stream, $file->position);
 
             return [$mailbox->parse($raw), $next, $end];

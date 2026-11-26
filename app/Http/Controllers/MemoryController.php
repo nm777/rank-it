@@ -69,7 +69,8 @@ class MemoryController extends Controller
                 ->orWhereExists(fn (Builder $passages) => $passages->selectRaw('1')->from('mail_passages')
                     ->whereColumn('message_id', 'entries.message_id')
                     ->whereRaw('strpos(lower(wording), lower(?)) > 0', [$search]))))
-            ->latest('files.created_at')->orderByDesc('files.id')
+            ->groupBy('files.filename', 'first_passage.id')
+            ->orderByRaw('max(files.created_at) desc')->orderByDesc('first_passage.id')
             ->simplePaginate(20, ['files.filename', 'first_passage.id as passage_id'], 'documents_page')
             ->appends($search === '' ? [] : ['q' => $search])
             ->fragment('documents');

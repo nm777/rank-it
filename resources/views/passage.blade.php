@@ -5,6 +5,16 @@
 <a href="{{ route('memories.browse') }}#documents">‹ Documents</a>
 @endif
 <h1>{{ $message->subject ?: 'Mailbox message' }}</h1>
+@if ($hasOriginal)
+    <p><a href="{{ route('documents.original', $message->id) }}">Download original</a></p>
+@elseif ($isDocument)
+    <form method="post" enctype="multipart/form-data" action="{{ route('imports.store') }}" class="stack">
+        @csrf
+        <input type="hidden" name="restore_message" value="{{ $message->id }}">
+        <label>Original file <input type="file" name="mailbox" required></label>
+        <button>Restore original</button>
+    </form>
+@endif
 @if (! $isDocument)
 <p>{{ $message->sender ?: 'Unknown sender' }} · {{ $message->sent_date ?: 'Unknown date' }}</p>
 @endif

@@ -16,7 +16,7 @@ class ImportMailbox implements ShouldQueue
 
     public $tries = 3;
 
-    public function __construct(public int $owner, public string $batch, public int $position = 0)
+    public function __construct(public int $owner, public string $batch, public int $position = 0, public ?int $restoreMessage = null)
     {
         $this->onConnection('database');
     }
@@ -42,11 +42,24 @@ class ImportMailbox implements ShouldQueue
             } finally {
                 fclose($stream);
             }
+            $document = ImportFile::isDocument($batch->filename);
+            $matchingMessage = $document && $parsed !== null
+                ? $this->matchingDocument($batch->filename, $parsed[1])
+                : null;
+            if ($matchingMessage === false || ($matchingMessage === null && isset($this->restoreMessage))) {
+                $this->batchQuery()->update([
+                    'status' => isset($this->restoreMessage) ? 'Original does not match' : 'Multiple matching documents',
+                    'updated_at' => now(),
+                ]);
+                DeleteStagedImport::dispatch($this->owner, $this->batch);
+
+                return;
+            }
             if ($parsed === null) {
                 $batch->unreadable++;
             } else {
                 $ordinal = $batch->imported + $batch->unreadable + $batch->excluded + 1;
-                if ($this->retain($mailbox, $parsed, $ordinal)) {
+                if ($this->retain($mailbox, $parsed, $ordinal, $matchingMessage)) {
                     $batch->imported++;
                 } else {
                     $batch->excluded++;
@@ -54,16 +67,49 @@ class ImportMailbox implements ShouldQueue
             }
             $this->batchQuery()->update(['position' => $next, 'imported' => $batch->imported,
                 'unreadable' => $batch->unreadable, 'excluded' => $batch->excluded, 'updated_at' => now(),
-                'status' => $end ? $this->outcome($batch) : 'Processing']);
-            if ($end) {
-                DeleteStagedImport::dispatch($this->owner, $this->batch);
-            } else {
+                'status' => $matchingMessage !== null && $batch->imported > 0
+                    ? 'Matched existing document'
+                    : ($end ? $this->outcome($batch) : 'Processing')]);
+            if (! $end) {
                 self::dispatch($this->owner, $this->batch, $next);
+            } elseif ($batch->imported === 0 || ! $document) {
+                DeleteStagedImport::dispatch($this->owner, $this->batch);
             }
         });
     }
 
-    private function retain(Mailbox $mailbox, array $parsed, int $ordinal): bool
+    private function matchingDocument(string $filename, string $body): int|false|null
+    {
+        $matches = DB::table('mail_messages as messages')
+            ->join('mailbox_entries as entries', 'entries.message_id', '=', 'messages.id')
+            ->join('mailbox_imports as files', 'files.id', '=', 'entries.import_id')
+            ->where('messages.user_id', $this->owner)
+            ->where('files.user_id', $this->owner)
+            ->where('files.filename', $filename)
+            ->when(isset($this->restoreMessage), fn ($query) => $query->where('messages.id', $this->restoreMessage))
+            ->whereRaw('(select string_agg(wording, chr(10) order by ordinal) from mail_passages where message_id = messages.id) = ?', [$body])
+            ->get(['messages.id as message_id', 'files.id as file_id'])
+            ->groupBy('message_id');
+
+        $disk = Storage::disk('import-staging');
+        $withoutOriginal = [];
+        $uploadedHash = null;
+        foreach ($matches as $messageId => $files) {
+            $originals = $files->filter(fn ($file) => $disk->fileExists("$this->owner/$file->file_id"));
+            if ($originals->isEmpty()) {
+                $withoutOriginal[] = (int) $messageId;
+            } elseif (! isset($this->restoreMessage)) {
+                $uploadedHash ??= hash_file('sha256', $disk->path("$this->owner/$this->batch"));
+                if ($uploadedHash !== false && $originals->contains(fn ($file) => $uploadedHash === hash_file('sha256', $disk->path("$this->owner/$file->file_id")))) {
+                    return (int) $messageId;
+                }
+            }
+        }
+
+        return count($withoutOriginal) > 1 ? false : ($withoutOriginal[0] ?? null);
+    }
+
+    private function retain(Mailbox $mailbox, array $parsed, int $ordinal, ?int $matchingMessage): bool
     {
         [$message, $body, $attachments] = $parsed;
         $message['identity'] ??= hash('sha256', "$this->batch:$ordinal");
@@ -73,8 +119,8 @@ class ImportMailbox implements ShouldQueue
             return false;
         }
         $messages = DB::table('mail_messages');
-        $created = $messages->insertOrIgnore($message);
-        $id = $messages->where('user_id', $this->owner)->where('identity', $message['identity'])->value('id');
+        $created = $matchingMessage === null && $messages->insertOrIgnore($message);
+        $id = $matchingMessage ?? $messages->where('user_id', $this->owner)->where('identity', $message['identity'])->value('id');
         if ($created) {
             foreach ($mailbox->passages($body) as $index => $wording) {
                 $quote = array_key_exists('parent_identity', $message) && preg_match('/^\s*>/', $wording) ? trim(preg_replace('/^[ \t]*> ?/m', '', $wording)) : null;

@@ -188,16 +188,18 @@ class ImportLifecycleTest extends TestCase
         $this->drain();
         $this->delete("/imports/$second")->assertRedirect();
         $this->assertDatabaseCount('mail_messages', 1);
+        $this->drain();
         $this->assertSame([], Storage::disk('import-staging')->allFiles());
     }
 
     public function test_document_import_makes_readable_files_searchable_and_reports_unreadable_files(): void
     {
-        $this->actingAs(User::factory()->create());
+        $owner = User::factory()->create();
+        $this->actingAs($owner);
         config(['inference.cap' => 0]);
-
+        $pdf = file_get_contents(base_path('tests/Fixtures/import.pdf'));
         $batch = $this->upload([
-            'document.PDF' => file_get_contents(base_path('tests/Fixtures/import.pdf')),
+            'document.PDF' => $pdf,
             'broken.pdf' => '%PDF-1.4',
             'workbook.xlsx' => $this->workbook(IOFactory::WRITER_XLSX, 'Cedar'),
             'legacy.xls' => $this->workbook(IOFactory::WRITER_XLS, 'Maple'),
@@ -217,6 +219,15 @@ class ImportLifecycleTest extends TestCase
             ->assertOk()->assertSee('class="document-reader document-spreadsheet"', false);
         $this->assertDatabaseHas('mail_passages', ['wording' => "Logistics\nCedar delivery schedule\t0"]);
         $this->assertDatabaseHas('mail_passages', ['wording' => "Logistics\nMaple delivery schedule\t0"]);
+        $document = DB::table('mail_messages')->where('subject', 'document.PDF')->firstOrFail();
+        $download = $this->get(route('documents.original', $document->id))->assertDownload('document.PDF');
+        $this->assertSame($pdf, $download->baseResponse->getFile()->getContent());
+        $this->assertStringContainsString('no-store', $download->headers->get('Cache-Control'));
+        $this->assertStringContainsString('private', $download->headers->get('Cache-Control'));
+        $this->assertCount(3, Storage::disk('import-staging')->allFiles());
+        $this->delete("/imports/$batch")->assertRedirect();
+        $this->drain();
+        $this->get(route('documents.original', $document->id))->assertNotFound();
         $this->assertSame([], Storage::disk('import-staging')->allFiles());
     }
 
@@ -228,7 +239,7 @@ class ImportLifecycleTest extends TestCase
         $this->actingAs($otherUser);
         $this->upload(['Private process.md' => 'Private checklist']);
         $this->actingAs($owner);
-        $this->upload([
+        $batch = $this->upload([
             'Onboarding process.MD' => "Prepare the laptop.\n\nReview the access checklist.",
             'Broken process.pdf' => '%PDF-1.4',
             'Process message.eml' => "From: Ada <ada@example.com>\r\nSubject: Email about onboarding\r\n\r\nEmail body",
@@ -245,6 +256,7 @@ class ImportLifecycleTest extends TestCase
         $list->assertSee('href="'.$documentUrl.'">Onboarding process.MD</a>', false);
         $this->get($documentUrl)->assertOk()
             ->assertSee('Review the access checklist.')
+            ->assertSee('Download original')
             ->assertSee('Delete document')
             ->assertDontSee('Unknown sender')
             ->assertDontSee('<mark', false);
@@ -258,6 +270,79 @@ class ImportLifecycleTest extends TestCase
         $this->get(route('memories.browse', ['q' => 'unrelated']))
             ->assertOk()->assertDontSee('Onboarding process.MD')->assertSee('No matching memories.');
         $this->actingAs($otherUser)->get($documentUrl)->assertNotFound();
+        $message = DB::table('mail_messages')->where('subject', 'Onboarding process.MD')->firstOrFail();
+        $downloadUrl = route('documents.original', $message->id);
+        $this->get($downloadUrl)->assertNotFound();
+        $this->actingAs($owner)->delete(route('messages.delete', $message->id))->assertRedirect();
+        $this->get($downloadUrl)->assertNotFound();
+        $this->drain();
+        Storage::disk('import-staging')->assertMissing("$owner->id/$batch");
+    }
+
+    public function test_reupload_restores_the_original_and_reuses_existing_passages(): void
+    {
+        $owner = User::factory()->create();
+        $this->actingAs($owner);
+        config(['inference.cap' => 0]);
+        $filename = 'Checklist.md';
+        $body = "First step\r\n\r\nSecond step";
+        $oldBatch = $this->upload([$filename => $body]);
+        $this->drain();
+        $message = DB::table('mail_messages')->sole();
+        $work = DB::table('inference_work')->orderBy('id')->pluck('id')->all();
+        Storage::disk('import-staging')->delete("$owner->id/$oldBatch");
+
+        $restoredBatch = $this->upload([$filename => $body]);
+        $this->drain();
+
+        $this->get(route('imports.show', $restoredBatch))->assertSee('Matched existing document');
+        $this->assertDatabaseCount('mail_messages', 1);
+        $this->assertSame($work, DB::table('inference_work')->orderBy('id')->pluck('id')->all());
+        $this->assertCount(1, $this->get(route('memories.browse'))->viewData('documents'));
+        $downloadUrl = route('documents.original', $message->id);
+        $download = $this->get($downloadUrl)->assertDownload($filename);
+        $this->assertSame($body, $download->baseResponse->getFile()->getContent());
+        $this->delete(route('imports.remove', $oldBatch))->assertRedirect();
+        $this->drain();
+        $this->get($downloadUrl)->assertDownload($filename);
+
+        $this->upload([$filename => $body]);
+        $this->drain();
+        $this->assertDatabaseCount('mail_messages', 1);
+        $this->delete(route('imports.remove', $restoredBatch))->assertRedirect();
+        $this->drain();
+        $this->get($downloadUrl)->assertDownload($filename);
+    }
+
+    public function test_ambiguous_reupload_requires_choosing_an_existing_document(): void
+    {
+        $owner = User::factory()->create();
+        $this->actingAs($owner);
+        config(['inference.cap' => 0]);
+        $filename = 'Checklist.md';
+        $first = $this->upload([$filename => "First step\r\nSecond step"]);
+        $second = $this->upload([$filename => "First step\nSecond step"]);
+        $this->drain();
+        $messages = DB::table('mail_messages')->orderBy('id')->pluck('id');
+        $this->assertCount(2, $messages);
+        Storage::disk('import-staging')->delete(["$owner->id/$first", "$owner->id/$second"]);
+
+        $ambiguous = $this->upload([$filename => "First step\nSecond step"]);
+        $this->drain();
+        $this->get(route('imports.show', $ambiguous))->assertSee('Multiple matching documents');
+
+        $restore = fn (string $contents) => $this->post(route('imports.store'), [
+            'restore_message' => $messages->first(),
+            'mailbox' => UploadedFile::fake()->createWithContent($filename, $contents),
+        ])->assertRedirect()->headers->get('Location');
+        $mismatch = $restore('Different wording');
+        $this->drain();
+        $this->get($mismatch)->assertSee('Original does not match');
+        $restore("First step\nSecond step");
+        $this->drain();
+        $this->get(route('documents.original', $messages->first()))->assertDownload($filename);
+        $this->get(route('documents.original', $messages->last()))->assertNotFound();
+        $this->assertDatabaseCount('mail_messages', 2);
     }
 
     private function workbook(string $format, string $label): string

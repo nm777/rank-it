@@ -4,6 +4,13 @@
 <h1>{{ $import->filename }}</h1>
 @if (session('status')) <p role="status">{{ session('status') }}</p> @endif
 <p>{{ $import->status }}</p>
+@if ($import->status === 'Multiple matching documents')
+    <p>Open the intended document in Memories and choose Restore original.</p>
+@elseif ($import->status === 'Original does not match')
+    <p>Restore requires the same filename and extracted text, and an entry with no original file.</p>
+@elseif ($import->status === 'Matched existing document')
+    <p>The original is available in <a href="{{ route('memories.browse', ['q' => $import->filename]) }}#documents">Documents</a>.</p>
+@endif
 <p>{{ $import->imported }} messages imported · {{ $import->unreadable }} known unreadable</p>
 @if ($import->excluded)<p>{{ $import->excluded }} previously deleted messages skipped</p>@endif
 @if ($pending)<p>Text search is ready. Meaning-based search is pending.</p>@endif

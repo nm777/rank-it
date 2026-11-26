@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
 
 class MailboxController extends Controller
@@ -85,12 +86,16 @@ class MailboxController extends Controller
 
     public function store(Request $request)
     {
+        $restoreMessage = $request->validate(['restore_message' => ['nullable', 'integer', 'min:1']])['restore_message'] ?? null;
         $multiple = $request->hasFile('files');
         $input = $request->validate($multiple
             ? ['files' => 'required|array|min:1|max:100', 'files.*' => 'required|file|max:16384']
             : ['mailbox' => 'required|file|max:16384']);
         $files = $multiple ? $input['files'] : [$input['mailbox']];
         $owner = $request->user()->id;
+        if ($restoreMessage !== null) {
+            abort_if($multiple || ! $this->filesForMessage($owner, $restoreMessage)->exists(), 404);
+        }
         $id = (string) Str::uuid();
         $disk = Storage::disk('import-staging');
         $staged = [];
@@ -100,11 +105,11 @@ class MailboxController extends Controller
                 $disk->putFileAs((string) $owner, $file, $fileId);
                 $staged[$fileId] = $file->getClientOriginalName();
             }
-            DB::transaction(function () use ($owner, $id, $staged) {
+            DB::transaction(function () use ($owner, $id, $staged, $restoreMessage) {
                 foreach ($staged as $fileId => $filename) {
                     DB::table('mailbox_imports')->insert(['id' => $fileId, 'batch_id' => $id, 'user_id' => $owner,
                         'filename' => $filename, 'created_at' => now(), 'updated_at' => now()]);
-                    ImportMailbox::dispatch($owner, $fileId);
+                    ImportMailbox::dispatch($owner, $fileId, restoreMessage: $restoreMessage);
                 }
             });
         } catch (\Throwable $e) {
@@ -140,18 +145,51 @@ class MailboxController extends Controller
         $selected = (clone $sources)->where('id', $passage)->firstOrFail();
         $message = DB::table('mail_messages')->where('user_id', $request->user()->id)->where('id', $selected->message_id)->firstOrFail();
         $passages = $sources->where('message_id', $message->id)->orderBy('ordinal')->get();
-        $filename = DB::table('mailbox_entries as entries')
-            ->join('mailbox_imports as files', 'files.id', '=', 'entries.import_id')
-            ->where('entries.message_id', $message->id)
-            ->where('files.user_id', $request->user()->id)
-            ->value('files.filename');
-        $extension = strtolower(pathinfo($filename ?? '', PATHINFO_EXTENSION));
-        $isDocument = in_array($extension, ImportFile::DOCUMENT_EXTENSIONS, true);
+        $owner = $request->user()->id;
+        $file = $this->originalForMessage($owner, $message->id);
+        $extension = strtolower(pathinfo($file->filename ?? '', PATHINFO_EXTENSION));
+        $isDocument = $file !== null && ImportFile::isDocument($file->filename);
         $isSpreadsheet = in_array($extension, ['xlsx', 'xls'], true);
+        $hasOriginal = $isDocument && Storage::disk('import-staging')->fileExists("$owner/$file->id");
 
         $skipped = DB::table('inference_work')->where('passage_id', $selected->id)->where('stage', 'skipped')->exists();
 
-        return view('passage', compact('message', 'selected', 'passages', 'skipped', 'isDocument', 'isSpreadsheet'));
+        return view('passage', compact('message', 'selected', 'passages', 'skipped', 'isDocument', 'isSpreadsheet', 'hasOriginal'));
+    }
+
+    public function downloadOriginal(Request $request, int $message): BinaryFileResponse
+    {
+        $owner = $request->user()->id;
+        $file = $this->originalForMessage($owner, $message);
+        abort_unless($file !== null && ImportFile::isDocument($file->filename), 404);
+
+        $disk = Storage::disk('import-staging');
+        $path = "$owner/$file->id";
+        abort_unless($disk->fileExists($path), 404);
+
+        return response()->download($disk->path($path), $file->filename, [
+            'Cache-Control' => 'private, no-store',
+            'Content-Type' => 'application/octet-stream',
+            'X-Content-Type-Options' => 'nosniff',
+        ])->setPrivate();
+    }
+
+    private function originalForMessage(int $owner, int $message): ?object
+    {
+        $files = $this->filesForMessage($owner, $message)
+            ->latest('files.created_at')->orderByDesc('files.id')->get(['files.id', 'files.filename']);
+        $disk = Storage::disk('import-staging');
+
+        return $files->first(fn ($file) => ImportFile::isDocument($file->filename) && $disk->fileExists("$owner/$file->id"))
+            ?? $files->first();
+    }
+
+    private function filesForMessage(int $owner, int $message): Builder
+    {
+        return DB::table('mailbox_entries as entries')
+            ->join('mailbox_imports as files', 'files.id', '=', 'entries.import_id')
+            ->where('entries.message_id', $message)
+            ->where('files.user_id', $owner);
     }
 
     public function promote(Request $request, int $passage)
@@ -173,6 +211,12 @@ class MailboxController extends Controller
         DB::transaction(function () use ($owner, $message) {
             DB::table('users')->where('id', $owner)->lockForUpdate()->first();
             $original = DB::table('mail_messages')->where('user_id', $owner)->where('id', $message)->firstOrFail();
+            $files = $this->filesForMessage($owner, $message)->get(['files.id', 'files.filename']);
+            foreach ($files as $file) {
+                if (ImportFile::isDocument($file->filename)) {
+                    DeleteStagedImport::dispatch($owner, $file->id);
+                }
+            }
             $pending = DB::table('mailbox_imports')->where('user_id', $owner)->whereIn('status', ['Queued', 'Processing']);
             foreach ($pending->pluck('id') as $id) {
                 DB::table('import_exclusions')->insertOrIgnore(['import_id' => $id, 'identity' => $original->identity]);
