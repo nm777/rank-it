@@ -66,6 +66,7 @@
                     @csrf
                     <button type="submit">Log out</button>
                 </form>
+                <p class="site-menu-version">Version {{ substr($appVersion, 0, 12) }}</p>
             </nav>
         </details>
         <dialog class="install-dialog" aria-labelledby="install-title" id="install-help">

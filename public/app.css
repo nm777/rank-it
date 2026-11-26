@@ -131,6 +131,13 @@ a { color: var(--accent); }
 }
 .site-menu > summary:hover { background: var(--navy-hover); }
 .site-menu nav :is(a, button):hover { background: var(--blue-wash); }
+.site-menu-version {
+    margin: .25rem 0 0;
+    padding: .5rem .7rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted-ink);
+    font-size: .75rem;
+}
 .theme-switcher:not([hidden]) {
     display: grid;
     overflow: hidden;

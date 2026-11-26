@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -24,6 +25,9 @@ class AppVersionTest extends TestCase
                 ->assertSee('theme.js?v='.$version)
                 ->assertSee('app-update.js?v='.$version)
                 ->assertSee('app.css?v='.$version);
+
+            $this->actingAs(User::factory()->make())->get('/profile/password')->assertOk()
+                ->assertSeeInOrder(['Log out', 'Version aaaaaaaaaaaa</p>', '</nav>'], false);
         } finally {
             File::deleteDirectory($bootstrapPath);
         }
