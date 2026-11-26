@@ -6,6 +6,7 @@ use App\Inference\Budget;
 use App\Inference\ProviderResponseException;
 use App\Inference\Providers;
 use App\Inference\Ratings;
+use App\Inference\WorkTransitions;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Http\Client\ConnectionException;
@@ -106,30 +107,9 @@ class IndexPassage implements ShouldQueue
             $cost = $tokens * $providers->rate();
         }
 
-        DB::transaction(function () use ($query, $updates, $work, $cost, $tokens, $budget) {
+        DB::transaction(function () use ($updates, $work, $cost, $tokens, $budget) {
             $budget->settle($work->call_id, $cost, $tokens);
-            $current = $query->lockForUpdate()->first();
-            if (! $current || $current->call_id !== $work->call_id) {
-                return;
-            }
-            if ($work->stage === 'screen') {
-                if ($work->contextOnly) {
-                    DB::table('ratings')->where('passage_id', $current->passage_id)->delete();
-                    $updates['agreement'] = null;
-                    $updates['ratings_processed'] = $updates['stage'] === 'skipped';
-                    $updates['stage'] = $work->previousStage;
-                } elseif ($current->context_changed && ! $work->context_changed) {
-                    $updates['stage'] = 'screen';
-                } else {
-                    DB::table('passage_rechecks')->where('work_id', $work->id)->whereNull('qualified')
-                        ->update(['qualified' => $updates['stage'] === 'embed']);
-                }
-            }
-            $rescreen = $work->stage === 'embed' && $current->context_changed;
-            $query->update($updates + ['call_id' => null, 'context_changed' => $rescreen]);
-            if ($rescreen || ($updates['ratings_processed'] ?? true) === false || in_array($updates['stage'], ['embed', 'screen'])) {
-                self::dispatch($this->workId);
-            }
+            WorkTransitions::complete($work, $updates);
         });
     }
 }

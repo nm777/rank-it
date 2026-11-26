@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Imports\ImportFile;
 use App\Imports\Mailbox;
+use App\Inference\WorkTransitions;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
@@ -103,12 +104,7 @@ class ImportMailbox implements ShouldQueue
             ->where('parent_identity', $identity)->select('id');
         $work = DB::table('inference_work')->whereIn('passage_id', $replies)->orderBy('id')->lockForUpdate()->get();
         foreach ($work as $reply) {
-            if ($reply->stage === 'screen' && ! $reply->call_id) {
-                continue;
-            }
-            $change = $reply->stage === 'skipped' ? ['stage' => 'screen'] : ['context_changed' => true];
-            DB::table('inference_work')->where('id', $reply->id)->update($change);
-            IndexPassage::dispatch($reply->id);
+            WorkTransitions::contextArrived($reply);
         }
     }
 

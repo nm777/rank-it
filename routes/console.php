@@ -2,6 +2,7 @@
 
 use App\Inference\Budget;
 use App\Inference\Providers;
+use App\Inference\WorkTransitions;
 use App\Jobs\IndexPassage;
 use App\Models\User;
 use Illuminate\Support\Facades\Artisan;
@@ -106,9 +107,7 @@ Artisan::command('inference:recheck {batch} {--status}', function (string $batch
                 ->join('mailbox_imports', 'mailbox_imports.id', '=', 'mailbox_entries.import_id')->where('batch_id', $batch)->select('mail_passages.id');
             $work = DB::table('inference_work')->where('stage', 'skipped')->whereIn('passage_id', $passages)->lockForUpdate()->get();
             foreach ($work as $item) {
-                DB::table('passage_rechecks')->updateOrInsert(['batch_id' => $batch, 'work_id' => $item->id], ['qualified' => null]);
-                DB::table('inference_work')->where('id', $item->id)->update(['stage' => 'screen']);
-                IndexPassage::dispatch($item->id);
+                WorkTransitions::recheck($item->id, $batch);
             }
         });
     }

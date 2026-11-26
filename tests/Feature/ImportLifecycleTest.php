@@ -2,13 +2,18 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ImportMailbox;
+use App\Jobs\IndexPassage;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Queue\Events\JobQueued;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use RuntimeException;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -163,6 +168,85 @@ class ImportLifecycleTest extends TestCase
         $this->get("/imports/$batch")->assertSee('Open newly qualifying passage');
         $this->actingAs($other)->get("/imports/$batch")->assertNotFound();
         $this->assertSame(1, DB::table('inference_work')->where('stage', 'skipped')->count());
+    }
+
+    public function test_parent_arriving_during_screening_requeues_reply_without_a_duplicate_call(): void
+    {
+        $owner = User::factory()->create();
+        $this->actingAs($owner);
+        $this->upload(['reply.eml' => "Message-ID: <reply@test>\nIn-Reply-To: <parent@test>\n\nAgreed."]);
+        $replyContexts = [];
+        Http::fake([
+            'https://api.typesafe.ai/v1/systemone' => function (Request $request) use ($owner, &$replyContexts) {
+                if ($request['state']['new_wording'] !== 'Agreed.') {
+                    return Http::response(['answers' => ['remember' => ['noul' => 0]], 'usage' => ['input_tokens' => 1]]);
+                }
+                $replyContexts[] = $request['state']['context'];
+                if (count($replyContexts) === 1) {
+                    $parent = $this->upload(['parent.eml' => "Message-ID: <parent@test>\n\nCake rated 9/10."]);
+                    app()->call([new ImportMailbox($owner->id, $parent, 0), 'handle']);
+                    $workId = DB::table('inference_work')->whereNotNull('call_id')->sole()->id;
+                    app()->call([new IndexPassage($workId), 'handle']);
+                }
+
+                return Http::response(['answers' => ['remember' => ['noul' => count($replyContexts) === 1 ? 0 : 1]],
+                    'usage' => ['input_tokens' => 1]]);
+            },
+            'http://local.test/embeddings' => Http::response(['data' => [['embedding' => [1, 0]]], 'usage' => ['prompt_tokens' => 1]]),
+        ]);
+
+        $this->drain();
+
+        $this->assertSame([[], ['Cake rated 9/10.']], $replyContexts);
+        $reply = DB::table('mail_passages')->where('wording', 'Agreed.')->sole();
+        $this->assertDatabaseHas('inference_work', ['passage_id' => $reply->id, 'stage' => 'indexed',
+            'context_changed' => false, 'call_id' => null]);
+        $this->assertDatabaseCount('jobs', 0);
+    }
+
+    public function test_interrupted_completion_rolls_back_the_stage_and_queued_continuation(): void
+    {
+        $this->actingAs(User::factory()->create());
+        $this->upload(['note.txt' => 'Keep this fixture']);
+        config(['inference.cap' => 0]);
+        $this->drain();
+        config(['inference.cap' => 10000000]);
+        $workId = DB::table('inference_work')->sole()->id;
+        Http::fake([
+            'https://api.typesafe.ai/v1/systemone' => Http::response(['answers' => ['remember' => ['noul' => 1]],
+                'usage' => ['input_tokens' => 1]]),
+            'http://local.test/embeddings' => Http::response(['data' => [['embedding' => [1, 0]]], 'usage' => ['prompt_tokens' => 1]]),
+        ]);
+        $interruption = new RuntimeException('Interrupted after enqueue');
+        $interrupt = true;
+        Event::listen(JobQueued::class, function (JobQueued $event) use ($interruption, &$interrupt) {
+            if ($interrupt && $event->job instanceof IndexPassage) {
+                $interrupt = false;
+                throw $interruption;
+            }
+        });
+
+        try {
+            app()->call([new IndexPassage($workId), 'handle']);
+            $this->fail('Expected the completion to be interrupted.');
+        } catch (RuntimeException $error) {
+            $this->assertSame($interruption, $error);
+        }
+
+        $callId = DB::table('inference_calls')->sole()->id;
+        $this->assertDatabaseHas('inference_calls', ['id' => $callId, 'actual' => null]);
+        $this->assertDatabaseHas('inference_work', ['id' => $workId, 'stage' => 'screen', 'call_id' => $callId]);
+        $this->assertDatabaseCount('jobs', 0);
+        $this->artisan('inference:resume')->assertSuccessful();
+        $this->assertDatabaseCount('jobs', 0);
+        Http::assertSentCount(1);
+
+        $this->artisan("inference:reconcile $callId 84")->assertSuccessful();
+        $this->artisan('inference:resume')->assertSuccessful();
+        $this->drain();
+
+        $this->assertDatabaseHas('inference_work', ['id' => $workId, 'stage' => 'indexed', 'call_id' => null]);
+        Http::assertSentCount(3);
     }
 
     public function test_partial_rebuild_resumes_before_switching_queries(): void

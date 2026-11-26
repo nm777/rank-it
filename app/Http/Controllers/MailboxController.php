@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Inference\WorkTransitions;
 use App\Jobs\DeleteStagedImport;
 use App\Jobs\ImportMailbox;
-use App\Jobs\IndexPassage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -17,7 +17,7 @@ class MailboxController extends Controller
         return view('imports', ['imports' => DB::table('mailbox_imports')->where('user_id', $request->user()->id)
             ->whereColumn('id', 'batch_id')
             ->select('mailbox_imports.*')->selectSub(DB::table('mailbox_imports as files')
-                ->whereColumn('files.batch_id', 'mailbox_imports.id')->selectRaw('count(*)'), 'file_count')
+            ->whereColumn('files.batch_id', 'mailbox_imports.id')->selectRaw('count(*)'), 'file_count')
             ->latest()->paginate(20)]);
     }
 
@@ -90,8 +90,7 @@ class MailboxController extends Controller
             DB::table('mail_passage_sources')->where('user_id', $request->user()->id)->where('id', $passage)->firstOrFail();
             $work = DB::table('inference_work')->where('passage_id', $passage)->where('stage', 'skipped')->lockForUpdate()->first();
             if ($work) {
-                DB::table('inference_work')->where('id', $work->id)->update(['stage' => 'embed']);
-                IndexPassage::dispatch($work->id);
+                WorkTransitions::promote($work->id);
             }
         });
 
