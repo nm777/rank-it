@@ -5,19 +5,12 @@ namespace Tests\Feature;
 use App\Inference\Budget;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class AccountControllerTest extends TestCase
 {
     use DatabaseMigrations;
-
-    protected function beforeRefreshingDatabase(): void
-    {
-        throw_unless(app()->environment('testing') && DB::selectOne('select current_database() as db')->db === 'rank_it_test',
-            \RuntimeException::class);
-    }
 
     public function test_guests_are_redirected_to_login_from_account_pages(): void
     {

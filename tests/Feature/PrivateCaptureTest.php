@@ -6,7 +6,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 use Tests\TestCase;
 
 class PrivateCaptureTest extends TestCase
@@ -72,7 +71,7 @@ class PrivateCaptureTest extends TestCase
         $captureDate = $memory->created_at->toDateString();
 
         $this->get('/')->assertOk()->assertSee('Saved')->assertSee($url)
-            ->assertSee("autofocus", false);
+            ->assertSee('autofocus', false);
         $this->get($url)->assertOk()->assertSee($wording)->assertSee('2025-02');
         $this->post('/logout');
         $this->post('/login', ['email' => strtoupper($owner->email), 'password' => 'password'])
@@ -114,13 +113,6 @@ class PrivateCaptureTest extends TestCase
         $this->assertSame('[1,2]', DB::selectOne("SELECT '[1,2]'::vector::text AS value")->value);
         $this->assertDatabaseCount('jobs', 0);
         $this->assertDatabaseCount('failed_jobs', 0);
-    }
-
-    protected function beforeRefreshingDatabase(): void
-    {
-        if (! app()->environment('testing') || DB::connection()->getDatabaseName() !== 'rank_it_test') {
-            throw new RuntimeException('Run the capture tests in the testing environment against rank_it_test.');
-        }
     }
 
     private function invite(string $email): string

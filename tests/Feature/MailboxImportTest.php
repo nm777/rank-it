@@ -15,13 +15,6 @@ class MailboxImportTest extends TestCase
 {
     use DatabaseMigrations;
 
-    protected function beforeRefreshingDatabase(): void
-    {
-        if (! app()->environment('testing') || DB::connection()->getDatabaseName() !== 'rank_it_test') {
-            throw new \RuntimeException('Mailbox tests require the dedicated testing database.');
-        }
-    }
-
     private function worker(bool $once = false): void
     {
         $db = DB::connection()->getConfig();

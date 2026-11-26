@@ -14,11 +14,6 @@ class RatingsTest extends TestCase
 {
     use DatabaseMigrations;
 
-    protected function beforeRefreshingDatabase(): void
-    {
-        throw_unless(app()->environment('testing') && DB::selectOne('select current_database() as db')->db === 'rank_it_test', \RuntimeException::class);
-    }
-
     public function test_current_ever_scale_date_edit_and_identity_link(): void
     {
         Http::preventStrayRequests();

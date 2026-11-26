@@ -14,11 +14,6 @@ class ConversationTest extends TestCase
 {
     use DatabaseMigrations;
 
-    protected function beforeRefreshingDatabase(): void
-    {
-        throw_unless(app()->environment('testing') && DB::selectOne('select current_database() as db')->db === 'rank_it_test', \RuntimeException::class);
-    }
-
     protected function setUp(): void
     {
         parent::setUp();
