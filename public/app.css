@@ -66,6 +66,20 @@ body > header {
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .brand:focus-visible, .site-menu > summary:focus-visible { outline-color: var(--ivory); }
 main { padding-bottom: 4rem; }
+.import-progress:not([hidden]) {
+    display: grid;
+    gap: .3rem;
+    box-sizing: border-box;
+    max-width: 44rem;
+    margin: .75rem auto 0;
+    padding: .5rem 1rem;
+    color: var(--accent);
+    font-size: .875rem;
+    text-decoration: none;
+}
+.import-progress:hover > span { text-decoration: underline; }
+.import-progress progress { width: 100%; height: .45rem; accent-color: var(--accent); }
+.import-file-counts { color: var(--muted-ink); font-size: .875rem; }
 h1 { font-size: clamp(1.8rem, 5vw, 2.5rem); line-height: 1.15; margin: 1.4rem 0; }
 h2 { font-size: 1.25rem; }
 a { color: var(--accent); }

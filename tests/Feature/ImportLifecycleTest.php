@@ -77,6 +77,40 @@ class ImportLifecycleTest extends TestCase
         $this->assertCount(100, Storage::disk('import-staging')->allFiles());
     }
 
+    public function test_queue_shows_current_import_progress_and_keeps_files_private(): void
+    {
+        $owner = User::factory()->create();
+        $other = User::factory()->create();
+        $this->getJson('/imports/queue')->assertUnauthorized();
+        $this->actingAs($other);
+        $this->upload(['private.txt' => 'Private note']);
+        $this->actingAs($owner);
+        $this->getJson('/imports/queue')->assertExactJson(['total' => 0, 'finished' => 0]);
+        $this->get('/imports/queue')->assertSee('No imports in the queue')->assertDontSee('private.txt');
+
+        $batch = $this->upload(['finished.txt' => 'Finished note', 'processing.txt' => 'Processing note']);
+        DB::table('mailbox_imports')->where('batch_id', $batch)->where('filename', 'finished.txt')
+            ->update(['status' => 'Imported', 'imported' => 1]);
+        DB::table('mailbox_imports')->where('batch_id', $batch)->where('filename', 'processing.txt')
+            ->update(['status' => 'Processing']);
+        $this->travel(1)->seconds();
+        $this->upload(['waiting.txt' => 'Waiting note']);
+
+        $this->getJson('/imports/queue')->assertExactJson(['total' => 3, 'finished' => 1]);
+        $this->get('/imports/queue')->assertSee('1 of 3 files processed')
+            ->assertSee('finished.txt')->assertSee('processing.txt')->assertSee('waiting.txt')
+            ->assertSee('Processing')->assertSee('Queued')->assertSee('1 imported')->assertDontSee('private.txt');
+        $details = $this->getJson('/imports/queue?details=1')->assertOk()->json('details');
+        $this->assertStringContainsString('waiting.txt', $details);
+        $this->assertStringNotContainsString('private.txt', $details);
+
+        config(['inference.cap' => 0]);
+        $this->drain();
+
+        $this->getJson('/imports/queue')->assertExactJson(['total' => 1, 'finished' => 1]);
+        $this->get('/imports/queue')->assertSee('waiting.txt')->assertDontSee('finished.txt');
+    }
+
     public function test_batch_formats_retries_and_private_collection_controls(): void
     {
         $owner = User::factory()->create();

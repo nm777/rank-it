@@ -19,6 +19,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('rank-it-180.png') }}">
     @auth
         <script src="{{ asset('install-app.js') }}?v={{ $appVersion }}" defer></script>
+        <script src="{{ asset('import-queue.js') }}?v={{ $appVersion }}" defer></script>
     @endauth
 </head>
 <body class="@yield('page-class')">
@@ -59,6 +60,7 @@
                 <a href="{{ route('memories.index') }}">Home</a>
                 <a href="{{ route('memories.browse') }}">Memories</a>
                 <a href="{{ route('imports.index') }}">Import</a>
+                <a href="{{ route('imports.queue') }}">Import queue</a>
                 <a href="{{ route('profile.show') }}">Profile</a>
                 <button type="button" id="install-app" hidden>Add to Home Screen</button>
                 <button type="button" id="reload-app" data-reload-app>Reload app</button>
@@ -96,6 +98,12 @@
         </script>
     @endauth
 </header>
+@auth
+    <a class="import-progress" href="{{ route('imports.queue') }}" data-import-progress hidden>
+        <span>Import queue <span aria-hidden="true">·</span> <span data-import-progress-label></span></span>
+        <progress aria-label="Files processed" max="1" value="0"></progress>
+    </a>
+@endauth
 <main>
     @if ($errors->any())
         <ul class="errors" role="alert">

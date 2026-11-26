@@ -5,10 +5,13 @@ namespace App\Http\Controllers;
 use App\Inference\WorkTransitions;
 use App\Jobs\DeleteStagedImport;
 use App\Jobs\ImportMailbox;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\Response;
 
 class MailboxController extends Controller
 {
@@ -19,6 +22,40 @@ class MailboxController extends Controller
             ->select('mailbox_imports.*')->selectSub(DB::table('mailbox_imports as files')
             ->whereColumn('files.batch_id', 'mailbox_imports.id')->selectRaw('count(*)'), 'file_count')
             ->latest()->paginate(20)]);
+    }
+
+    public function queue(Request $request): Response
+    {
+        $imports = DB::table('mailbox_imports')->where('user_id', $request->user()->id);
+        $activeStatuses = ['Queued', 'Processing'];
+        $activeBatches = (clone $imports)->select('batch_id')->whereIn('status', $activeStatuses);
+        $latestBatch = (clone $imports)->select('id')->whereColumn('id', 'batch_id')->latest()->orderByDesc('id')->limit(1);
+        $queue = $imports->where(fn (Builder $query) => $query->whereIn('batch_id', $activeBatches)
+            ->orWhere('batch_id', '=', $latestBatch));
+
+        $headers = ['Cache-Control' => 'private, no-store'];
+        if ($request->expectsJson() && ! $request->boolean('details')) {
+            $counts = $queue->groupBy('status')->selectRaw('status, count(*) as total')->pluck('total', 'status');
+            $total = $counts->sum();
+            $finished = $total - $counts->only($activeStatuses)->sum();
+
+            return new JsonResponse(compact('total', 'finished'), headers: $headers);
+        }
+
+        $files = $queue->latest()->orderBy('filename')->orderBy('id')
+            ->get(['id', 'filename', 'status', 'imported', 'unreadable', 'excluded']);
+        $total = $files->count();
+        $finished = $total - $files->whereIn('status', $activeStatuses)->count();
+
+        if ($request->expectsJson()) {
+            return new JsonResponse([
+                'total' => $total,
+                'finished' => $finished,
+                'details' => view('import-queue-files', compact('files'))->render(),
+            ], headers: $headers);
+        }
+
+        return response()->view('import-queue', compact('files', 'total', 'finished'), headers: $headers);
     }
 
     public function store(Request $request)

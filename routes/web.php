@@ -24,6 +24,7 @@ Route::middleware('guest')->group(function () {
 
 Route::middleware('auth')->group(function () {
     Route::get('/imports', [MailboxController::class, 'index'])->name('imports.index');
+    Route::get('/imports/queue', [MailboxController::class, 'queue'])->name('imports.queue');
     Route::post('/imports', [MailboxController::class, 'store'])->name('imports.store');
     Route::get('/imports/{batch}', [MailboxController::class, 'show'])->whereUuid('batch')->name('imports.show');
     Route::get('/passages/{passage}', [MailboxController::class, 'passage'])->whereNumber('passage')->name('passages.show');
