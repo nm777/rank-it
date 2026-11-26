@@ -11,8 +11,10 @@ use App\Inference\Ratings;
 use App\Inference\RatingSearch;
 use App\Inference\Recall;
 use App\Jobs\IndexPassage;
+use App\SaveMemory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Client\HttpClientException;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Cursor;
 use Illuminate\Support\Facades\DB;
@@ -54,15 +56,15 @@ class MemoryController extends Controller
         return view('browse-memories', compact('memories', 'search'));
     }
 
-    public function input(Request $request, Recall $recall, Conversation $conversation, Providers $providers, Budget $budget)
+    public function input(Request $request, Recall $recall, Conversation $conversation, Providers $providers, Budget $budget, SaveMemory $saveMemory)
     {
         $data = $this->validateMemory($request);
         $choice = $request->validate(['intent' => ['nullable', 'in:ask,save']])['intent'] ?? null;
         $text = trim($data['wording']);
         if ($request->boolean('followup') && ! $request->boolean('replay') && preg_match('/^(?:please )?(?:remember (?:this|that)|save (?:this|that)(?: fact)?)[:,]?\s+(.+)$/isu', $text, $explicit)) {
-            $request->merge(['wording' => trim($explicit[1])]);
+            $data['wording'] = trim($explicit[1]);
 
-            return $this->store($request);
+            return $this->saved($saveMemory->handle($request->user(), $data));
         }
         if ($choice === null && (str_ends_with($text, '?')
             || preg_match('/^(?:who|what|when|where|why|how|which|did|does|can|could|would|should)\b/iu', $text))) {
@@ -90,7 +92,7 @@ class MemoryController extends Controller
             }
         }
         if ($choice === 'save') {
-            return $this->store($request);
+            return $this->saved($saveMemory->handle($request->user(), $data));
         }
         if ($choice === 'ask' || preg_match('/^(?:suppose|imagine|if)\b/iu', $text)) {
             $followup = $request->boolean('followup');
@@ -121,10 +123,10 @@ class MemoryController extends Controller
         }
         if (preg_match('/^(?:remember (?:this|that)\b|I (?:parked|left|put|stored|bought|hired|liked|loved|preferred)\b)/iu', $text)
             && ! preg_match('/\b(?:if|maybe|suppose|hypothetically|might|would)\b/iu', $text)) {
-            return $this->store($request);
+            return $this->saved($saveMemory->handle($request->user(), $data));
         }
         if (! preg_match('/\b(?:if|maybe|might|would|not|hypothetically)\b/iu', $text) && Ratings::extract($text, null)) {
-            return $this->store($request);
+            return $this->saved($saveMemory->handle($request->user(), $data));
         }
 
         return view('clarify', $data + ['routingUnavailable' => true]);
@@ -144,24 +146,15 @@ class MemoryController extends Controller
         return view('memories', ['results' => $results, 'passages' => $passages, 'query' => $data['wording']]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, SaveMemory $saveMemory): RedirectResponse
     {
-        $data = $this->validateMemory($request);
-        $id = DB::transaction(function () use ($request, $data) {
-            $memory = $request->user()->memories()->make($data);
-            if ($request->route('passage') !== null) {
-                $source = DB::table('mail_passages')->join('mail_messages', 'mail_messages.id', '=', 'mail_passages.message_id')
-                    ->where('mail_messages.user_id', $request->user()->id)->where('mail_passages.id', $request->route('passage'))
-                    ->lockForUpdate()->firstOrFail(['mail_passages.id']);
-                $memory->corrects_passage_id = $source->id;
-            }
-            $memory->save();
-            Ratings::capture($memory);
-            IndexPassage::enqueue(['memory_id' => $memory->id], 'embed');
+        return $this->saved($saveMemory->handle(
+            $request->user(), $this->validateMemory($request), $request->route('passage'),
+        ));
+    }
 
-            return $memory->id;
-        });
-
+    private function saved(string $id): RedirectResponse
+    {
         return redirect()->route('memories.index')->with('status', 'Saved')->with('evidence_changed', true)
             ->with('ai_output', AiOutput::current())->with('saved_memory_id', $id);
     }
@@ -271,6 +264,7 @@ class MemoryController extends Controller
         return redirect()->route('memories.index')->with('evidence_changed', true);
     }
 
+    /** @return array{wording: string, experience_date: ?string} */
     private function validateMemory(Request $request): array
     {
         return $request->validate([
