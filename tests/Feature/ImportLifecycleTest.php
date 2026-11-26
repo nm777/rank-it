@@ -188,9 +188,53 @@ class ImportLifecycleTest extends TestCase
         foreach (['Evergreen PDF fixture', 'Cedar delivery schedule', 'Maple delivery schedule'] as $wording) {
             $this->post('/search', ['wording' => $wording])->assertSee('#passage-');
         }
+        $documents = $this->get(route('memories.browse'))->assertOk()->viewData('documents');
+        $workbook = $documents->firstWhere('filename', 'workbook.xlsx');
+        $this->get(route('passages.show', $workbook->passage_id))
+            ->assertOk()->assertSee('class="document-reader document-spreadsheet"', false);
         $this->assertDatabaseHas('mail_passages', ['wording' => "Logistics\nCedar delivery schedule\t0"]);
         $this->assertDatabaseHas('mail_passages', ['wording' => "Logistics\nMaple delivery schedule\t0"]);
         $this->assertSame([], Storage::disk('import-staging')->allFiles());
+    }
+
+    public function test_memories_lists_and_opens_owned_documents(): void
+    {
+        config(['inference.cap' => 0]);
+        $owner = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $this->actingAs($otherUser);
+        $this->upload(['Private process.md' => 'Private checklist']);
+        $this->actingAs($owner);
+        $this->upload([
+            'Onboarding process.MD' => "Prepare the laptop.\n\nReview the access checklist.",
+            'Broken process.pdf' => '%PDF-1.4',
+            'Process message.eml' => "From: Ada <ada@example.com>\r\nSubject: Email about onboarding\r\n\r\nEmail body",
+        ]);
+        $this->drain();
+
+        $list = $this->get(route('memories.browse'))->assertOk()
+            ->assertSee('Documents')
+            ->assertSee('Onboarding process.MD')
+            ->assertDontSee('Private process.md')
+            ->assertDontSee('Broken process.pdf')
+            ->assertDontSee('Process message.eml');
+        $documentUrl = route('passages.show', $list->viewData('documents')->first()->passage_id);
+        $list->assertSee('href="'.$documentUrl.'">Onboarding process.MD</a>', false);
+        $this->get($documentUrl)->assertOk()
+            ->assertSee('Review the access checklist.')
+            ->assertSee('Delete document')
+            ->assertDontSee('Unknown sender')
+            ->assertDontSee('<mark', false);
+        $this->get($documentUrl.'?start=12&length=6')->assertOk()
+            ->assertSee('<mark id="evidence">laptop</mark>', false);
+
+        foreach (['onboarding', 'ACCESS CHECKLIST'] as $search) {
+            $this->get(route('memories.browse', ['q' => $search]))
+                ->assertOk()->assertSee('Onboarding process.MD')->assertDontSee('No matching memories.');
+        }
+        $this->get(route('memories.browse', ['q' => 'unrelated']))
+            ->assertOk()->assertDontSee('Onboarding process.MD')->assertSee('No matching memories.');
+        $this->actingAs($otherUser)->get($documentUrl)->assertNotFound();
     }
 
     private function workbook(string $format, string $label): string

@@ -304,6 +304,25 @@ small { display: block; }
 }
 .answer-results article + article { margin-top: .65rem; }
 .answer-wording { margin: 0 0 .55rem; font-size: 1.08rem; }
+.passage-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.document-reader {
+    margin: 1rem 0;
+    padding: clamp(1rem, 4vw, 2rem);
+    border: 1px solid var(--line);
+    border-radius: .75rem;
+    background: var(--surface);
+    line-height: 1.7;
+}
+.document-reader .passage-text { min-height: 1lh; }
+.document-spreadsheet { overflow-x: auto; }
+.document-spreadsheet .passage-text {
+    font-family: ui-monospace, monospace;
+    white-space: pre;
+    tab-size: 8;
+}
 .memory-card-footer {
     display: flex;
     align-items: center;

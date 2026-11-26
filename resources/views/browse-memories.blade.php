@@ -6,11 +6,31 @@
     <input type="search" name="q" aria-label="Search memories" placeholder="Search memories" value="{{ $search }}" maxlength="10000">
     <button type="submit">Search</button>
 </form>
+@if ($documents->isNotEmpty() || $documents->previousPageUrl())
+    <section id="documents" class="answer-results" aria-labelledby="documents-heading">
+        <h2 id="documents-heading">Documents</h2>
+        @foreach ($documents as $document)
+            <x-memory-card>
+                <a href="{{ route('passages.show', $document->passage_id) }}">{{ $document->filename }}</a>
+            </x-memory-card>
+        @endforeach
+        <div class="memory-pagination">
+            @if ($documents->previousPageUrl())
+                <a href="{{ $documents->previousPageUrl() }}">Previous documents</a>
+            @endif
+            @if ($documents->nextPageUrl())
+                <a href="{{ $documents->nextPageUrl() }}">More documents</a>
+            @endif
+        </div>
+    </section>
+@endif
 <section id="memory-results" class="answer-results" aria-label="Memory results">
     @forelse ($memories as $memory)
         <x-memory-card :memory="$memory" />
     @empty
-        <p>{{ $search === '' ? 'Your saved memories will appear here.' : 'No matching memories.' }}</p>
+        @if ($documents->isEmpty() && ! $documents->previousPageUrl())
+            <p>{{ $search === '' ? 'Your saved memories will appear here.' : 'No matching memories.' }}</p>
+        @endif
     @endforelse
 </section>
 <div class="memory-pagination">

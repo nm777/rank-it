@@ -14,12 +14,14 @@ use ZipArchive;
 
 class ImportFile
 {
+    public const array DOCUMENT_EXTENSIONS = ['txt', 'md', 'markdown', 'docx', 'pdf', 'xlsx', 'xls'];
+
     private const int MAX_DOCUMENT_BYTES = 16 * 1024 * 1024;
 
     public function read(Mailbox $mailbox, $stream, string $path, object $file): array
     {
         $extension = strtolower(pathinfo($file->filename, PATHINFO_EXTENSION));
-        if (! in_array($extension, ['eml', 'txt', 'md', 'markdown', 'docx', 'pdf', 'xlsx', 'xls'], true)) {
+        if ($extension !== 'eml' && ! in_array($extension, self::DOCUMENT_EXTENSIONS, true)) {
             [$raw, $next, $end] = $mailbox->read($stream, $file->position);
 
             return [$mailbox->parse($raw), $next, $end];

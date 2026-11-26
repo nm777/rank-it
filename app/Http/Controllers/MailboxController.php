@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Imports\ImportFile;
 use App\Inference\WorkTransitions;
 use App\Jobs\DeleteStagedImport;
 use App\Jobs\ImportMailbox;
@@ -133,10 +134,18 @@ class MailboxController extends Controller
         $selected = (clone $sources)->where('id', $passage)->firstOrFail();
         $message = DB::table('mail_messages')->where('user_id', $request->user()->id)->where('id', $selected->message_id)->firstOrFail();
         $passages = $sources->where('message_id', $message->id)->orderBy('ordinal')->get();
+        $filename = DB::table('mailbox_entries as entries')
+            ->join('mailbox_imports as files', 'files.id', '=', 'entries.import_id')
+            ->where('entries.message_id', $message->id)
+            ->where('files.user_id', $request->user()->id)
+            ->value('files.filename');
+        $extension = strtolower(pathinfo($filename ?? '', PATHINFO_EXTENSION));
+        $isDocument = in_array($extension, ImportFile::DOCUMENT_EXTENSIONS, true);
+        $isSpreadsheet = in_array($extension, ['xlsx', 'xls'], true);
 
         $skipped = DB::table('inference_work')->where('passage_id', $selected->id)->where('stage', 'skipped')->exists();
 
-        return view('passage', compact('message', 'selected', 'passages', 'skipped'));
+        return view('passage', compact('message', 'selected', 'passages', 'skipped', 'isDocument', 'isSpreadsheet'));
     }
 
     public function promote(Request $request, int $passage)

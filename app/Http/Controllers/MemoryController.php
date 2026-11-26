@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Imports\ImportFile;
 use App\Inference\AiOutput;
 use App\Inference\Budget;
 use App\Inference\Conversation;
@@ -14,6 +15,7 @@ use App\Jobs\IndexPassage;
 use App\MemoryPhoto;
 use App\SaveMemory;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -56,7 +58,23 @@ class MemoryController extends Controller
             ->cursorPaginate(20, cursor: $cursor)
             ->appends($search === '' ? [] : ['q' => $search]);
 
-        return view('browse-memories', compact('memories', 'search'));
+        $documents = DB::table('mailbox_imports as files')
+            ->join('mailbox_entries as entries', 'entries.import_id', '=', 'files.id')
+            ->join('mail_passages as first_passage', 'first_passage.message_id', '=', 'entries.message_id')
+            ->where('files.user_id', $request->user()->id)
+            ->where('first_passage.ordinal', 0)
+            ->whereIn(DB::raw("substring(lower(files.filename) from '\\.([^.]+)$')"), ImportFile::DOCUMENT_EXTENSIONS)
+            ->when($search !== '', fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
+                ->whereRaw('strpos(lower(files.filename), lower(?)) > 0', [$search])
+                ->orWhereExists(fn (Builder $passages) => $passages->selectRaw('1')->from('mail_passages')
+                    ->whereColumn('message_id', 'entries.message_id')
+                    ->whereRaw('strpos(lower(wording), lower(?)) > 0', [$search]))))
+            ->latest('files.created_at')->orderByDesc('files.id')
+            ->simplePaginate(20, ['files.filename', 'first_passage.id as passage_id'], 'documents_page')
+            ->appends($search === '' ? [] : ['q' => $search])
+            ->fragment('documents');
+
+        return view('browse-memories', compact('memories', 'documents', 'search'));
     }
 
     public function input(Request $request, Recall $recall, Conversation $conversation, Providers $providers, Budget $budget, SaveMemory $saveMemory, MemoryPhoto $photo)
