@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Imports\DocumentOriginals;
 use App\Imports\ImportFile;
 use App\Inference\AiOutput;
 use App\Inference\Budget;
@@ -75,7 +76,9 @@ class MemoryController extends Controller
             ->appends($search === '' ? [] : ['q' => $search])
             ->fragment('documents');
 
-        return view('browse-memories', compact('memories', 'documents', 'search'));
+        $documentOriginals = DocumentOriginals::forPassages($request->user()->id, $documents->pluck('passage_id')->all());
+
+        return view('browse-memories', compact('memories', 'documents', 'search', 'documentOriginals'));
     }
 
     public function input(Request $request, Recall $recall, Conversation $conversation, Providers $providers, Budget $budget, SaveMemory $saveMemory, MemoryPhoto $photo)
@@ -137,7 +140,7 @@ class MemoryController extends Controller
             $dismissed = array_keys($conversation->current()['dismissed']);
             $search = implode("\n", [...$context, $text]);
             if ($ratings = (new RatingSearch)->ask($request->user()->id, $search)) {
-                return $this->ratingAnswer($ratings, $text, $conversation)->with(['experienceDate' => $data['experience_date'], 'replayWording' => $data['wording']]);
+                return $this->ratingAnswer($ratings, $text, $conversation, $request->user()->id)->with(['experienceDate' => $data['experience_date'], 'replayWording' => $data['wording']]);
             }
             $response = $recall->ask($request->user()->id, $text, $context, $dismissed, $previous);
             $answer = $response['answer'];
@@ -153,7 +156,9 @@ class MemoryController extends Controller
             }
             $turn = $conversation->remember($text, $versions);
 
-            return view('recall', $response + compact('turn'))->with(['experienceDate' => $data['experience_date'], 'replayWording' => $data['wording']]);
+            $documentOriginals = DocumentOriginals::forSources($request->user()->id, $keys);
+
+            return view('recall', $response + compact('turn', 'documentOriginals'))->with(['experienceDate' => $data['experience_date'], 'replayWording' => $data['wording']]);
         }
         if (preg_match('/^(?:remember (?:this|that)\b|I (?:parked|left|put|stored|bought|hired|liked|loved|preferred)\b)/iu', $text)
             && ! preg_match('/\b(?:if|maybe|suppose|hypothetically|might|would)\b/iu', $text)) {
@@ -177,7 +182,9 @@ class MemoryController extends Controller
             ->whereRaw('strpos(lower(coalesce(quote_text, wording)), lower(?)) > 0', [trim($data['wording'])])
             ->limit(50)->get();
 
-        return view('memories', ['results' => $results, 'passages' => $passages, 'query' => $data['wording']]);
+        $documentOriginals = DocumentOriginals::forPassages($request->user()->id, $passages->pluck('id')->all());
+
+        return view('memories', ['results' => $results, 'passages' => $passages, 'query' => $data['wording'], 'documentOriginals' => $documentOriginals]);
     }
 
     public function store(Request $request, SaveMemory $saveMemory): RedirectResponse
@@ -232,7 +239,7 @@ class MemoryController extends Controller
             $source->update(['authored_by_me' => $data['scope'] === 'message']);
         }
 
-        return $this->ratingAnswer((new RatingSearch)->ask($request->user()->id, $data['wording']) ?? abort(422), $data['wording'], new Conversation($request));
+        return $this->ratingAnswer((new RatingSearch)->ask($request->user()->id, $data['wording']) ?? abort(422), $data['wording'], new Conversation($request), $request->user()->id);
     }
 
     public function identifyPerson(Request $request, string $memory)
@@ -249,7 +256,7 @@ class MemoryController extends Controller
         return redirect()->route('memories.show', $memory);
     }
 
-    private function ratingAnswer(array $ratings, string $question, Conversation $conversation)
+    private function ratingAnswer(array $ratings, string $question, Conversation $conversation, int $owner): View
     {
         $versions = [];
         $dismissed = $conversation->current()['dismissed'];
@@ -270,7 +277,9 @@ class MemoryController extends Controller
         $turn = $conversation->remember($question, $versions);
         $ratings['question'] = $question;
 
-        return view('rating-results', $ratings + compact('turn'));
+        $documentOriginals = DocumentOriginals::forSources($owner, array_keys($versions));
+
+        return view('rating-results', $ratings + compact('turn', 'documentOriginals'));
     }
 
     public function status(Conversation $conversation, string $turn)

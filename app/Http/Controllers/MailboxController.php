@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Imports\DocumentOriginals;
 use App\Imports\ImportFile;
 use App\Inference\WorkTransitions;
 use App\Jobs\DeleteStagedImport;
@@ -150,7 +151,7 @@ class MailboxController extends Controller
         $extension = strtolower(pathinfo($file->filename ?? '', PATHINFO_EXTENSION));
         $isDocument = $file !== null && ImportFile::isDocument($file->filename);
         $isSpreadsheet = in_array($extension, ['xlsx', 'xls'], true);
-        $hasOriginal = $isDocument && Storage::disk('import-staging')->fileExists("$owner/$file->id");
+        $hasOriginal = $file !== null && DocumentOriginals::available($owner, $file);
 
         $skipped = DB::table('inference_work')->where('passage_id', $selected->id)->where('stage', 'skipped')->exists();
 
@@ -161,11 +162,10 @@ class MailboxController extends Controller
     {
         $owner = $request->user()->id;
         $file = $this->originalForMessage($owner, $message);
-        abort_unless($file !== null && ImportFile::isDocument($file->filename), 404);
+        abort_unless($file !== null && DocumentOriginals::available($owner, $file), 404);
 
         $disk = Storage::disk('import-staging');
         $path = "$owner/$file->id";
-        abort_unless($disk->fileExists($path), 404);
 
         return response()->download($disk->path($path), $file->filename, [
             'Cache-Control' => 'private, no-store',
@@ -178,18 +178,14 @@ class MailboxController extends Controller
     {
         $files = $this->filesForMessage($owner, $message)
             ->latest('files.created_at')->orderByDesc('files.id')->get(['files.id', 'files.filename']);
-        $disk = Storage::disk('import-staging');
 
-        return $files->first(fn ($file) => ImportFile::isDocument($file->filename) && $disk->fileExists("$owner/$file->id"))
+        return $files->first(fn ($file) => DocumentOriginals::available($owner, $file))
             ?? $files->first();
     }
 
     private function filesForMessage(int $owner, int $message): Builder
     {
-        return DB::table('mailbox_entries as entries')
-            ->join('mailbox_imports as files', 'files.id', '=', 'entries.import_id')
-            ->where('entries.message_id', $message)
-            ->where('files.user_id', $owner);
+        return DocumentOriginals::files($owner)->where('entries.message_id', $message);
     }
 
     public function promote(Request $request, int $passage)

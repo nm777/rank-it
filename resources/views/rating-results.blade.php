@@ -12,6 +12,7 @@
  · {{ $row->mine ? 'You' : ($row->sender ?: 'Unknown author') }} · Rated {{ $row->created_at ?? $row->sent_date ?? 'date unknown' }} · Experience {{ $row->experience ?? 'date unknown' }}<x-slot:actions>
 @if ($row->memory_id)<a href="{{ route('memories.show', [$row->memory_id, 'highlight' => 1]) }}#passage">Original wording</a>
 @else<a href="{{ route('passages.show', $row->passage_id) }}#passage-{{ $row->passage_id }}">Original score</a>
+@include('document-original-link', ['passageId' => $row->passage_id])
 @if ($row->reply)<a href="{{ route('passages.show', $row->reply) }}#passage-{{ $row->reply }}">Agreement</a>@endif
 @endif @include('dismiss-source', ['key' => $row->memory_id ? 'memory:'.$row->memory_id : 'passage:'.$row->passage_id])</x-slot:actions></x-memory-card>
 @endforeach

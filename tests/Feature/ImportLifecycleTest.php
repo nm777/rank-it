@@ -220,7 +220,13 @@ class ImportLifecycleTest extends TestCase
         $this->assertDatabaseHas('mail_passages', ['wording' => "Logistics\nCedar delivery schedule\t0"]);
         $this->assertDatabaseHas('mail_passages', ['wording' => "Logistics\nMaple delivery schedule\t0"]);
         $document = DB::table('mail_messages')->where('subject', 'document.PDF')->firstOrFail();
-        $download = $this->get(route('documents.original', $document->id))->assertDownload('document.PDF');
+        $downloadUrl = route('documents.original', $document->id);
+        $downloadLink = 'href="'.$downloadUrl.'">Download original</a>';
+        $this->post('/search', ['wording' => 'Evergreen PDF fixture'])->assertOk()->assertSee($downloadLink, false);
+        $this->get(route('memories.browse', ['q' => 'document.PDF']))->assertOk()->assertSee($downloadLink, false);
+        $this->post('/input', ['wording' => 'Where is the Evergreen PDF fixture?', 'intent' => 'ask'])
+            ->assertOk()->assertSee('Search results')->assertSee($downloadLink, false);
+        $download = $this->get($downloadUrl)->assertDownload('document.PDF');
         $this->assertSame($pdf, $download->baseResponse->getFile()->getContent());
         $this->assertStringContainsString('no-store', $download->headers->get('Cache-Control'));
         $this->assertStringContainsString('private', $download->headers->get('Cache-Control'));
@@ -291,6 +297,7 @@ class ImportLifecycleTest extends TestCase
         $message = DB::table('mail_messages')->sole();
         $work = DB::table('inference_work')->orderBy('id')->pluck('id')->all();
         Storage::disk('import-staging')->delete("$owner->id/$oldBatch");
+        $this->post('/search', ['wording' => 'First step'])->assertOk()->assertDontSee('Download original');
 
         $restoredBatch = $this->upload([$filename => $body]);
         $this->drain();

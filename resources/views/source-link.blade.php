@@ -11,6 +11,9 @@
 @endphp
 <div class="evidence-source">
 <a data-source="{{ $source->key }}" href="{{ $url }}">Open passage</a>
+@if ($type === 'passage')
+    @include('document-original-link', ['passageId' => $id])
+@endif
 <small>{{ $source->author ?: 'Unknown author' }} · {{ $source->date ?: 'Unknown date' }}</small>
 @if ($type === 'memory' && preg_match('/^I mean\s+(.+?)\.?$/iu', $question, $person))
 <a href="{{ route('memories.show', ['memory' => $id, 'person' => Str::limit($person[1], 255, '')]) }}#identify-person">Save this identity for this memory</a>

@@ -11,7 +11,8 @@
         <h2 id="documents-heading">Documents</h2>
         @foreach ($documents as $document)
             <x-memory-card>
-                <a href="{{ route('passages.show', $document->passage_id) }}">{{ $document->filename }}</a>
+                <p class="answer-wording"><a href="{{ route('passages.show', $document->passage_id) }}">{{ $document->filename }}</a></p>
+                @include('document-original-link', ['passageId' => $document->passage_id])
             </x-memory-card>
         @endforeach
         <div class="memory-pagination">

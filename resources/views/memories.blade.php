@@ -34,6 +34,7 @@ document.querySelector('#wording').addEventListener('keydown', event => {
             <p class="answer-wording">
                 <a href="{{ route('passages.show', $passage->id) }}#passage-{{ $passage->id }}">{{ \Illuminate\Support\Str::limit($passage->wording, 120) }}</a>
             </p>
+            @include('document-original-link', ['passageId' => $passage->id])
             <small>{{ $passage->quote_text !== null ? 'Quoted history in message from ' : '' }}{{ $passage->sender ?: 'Unknown sender' }} · {{ $passage->sent_date ?: 'Unknown date' }}</small>
         </article>
     @endforeach
