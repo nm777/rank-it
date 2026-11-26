@@ -81,6 +81,56 @@ class ImportLifecycleTest extends TestCase
         $this->assertSame([], Storage::disk('import-staging')->allFiles());
     }
 
+    public function test_batch_removal_commits_cleanup_for_each_file_and_retries_a_deletion_failure(): void
+    {
+        $owner = User::factory()->create();
+        $this->actingAs($owner);
+        $batch = $this->upload(['first.txt' => 'First fixture', 'second.txt' => 'Second fixture']);
+        $disk = Storage::disk('import-staging');
+        $path = "$owner->id/$batch";
+        rename($disk->path($path), $disk->path("$path.saved"));
+        $disk->makeDirectory($path);
+
+        $this->delete("/imports/$batch")->assertRedirect(route('imports.index'));
+
+        $this->assertDatabaseMissing('mailbox_imports', ['batch_id' => $batch]);
+        $this->assertDatabaseCount('jobs', 4);
+        $this->drain();
+
+        $this->assertDatabaseHas('jobs', ['attempts' => 1, 'reserved_at' => null]);
+        $this->assertDatabaseCount('jobs', 1);
+        $disk->assertExists([$path, "$path.saved"]);
+        $this->assertSame(["$path.saved"], $disk->allFiles());
+
+        $disk->deleteDirectory($path);
+        rename($disk->path("$path.saved"), $disk->path($path));
+        $this->travel(11)->seconds();
+        $this->drain();
+
+        $this->assertDatabaseCount('jobs', 0);
+        $this->assertSame([], $disk->allFiles());
+    }
+
+    public function test_rolling_back_batch_removal_keeps_staged_files_and_discards_cleanup_jobs(): void
+    {
+        $owner = User::factory()->create();
+        $this->actingAs($owner);
+        $batch = $this->upload(['fixture.txt' => 'Fixture']);
+
+        DB::beginTransaction();
+        try {
+            $this->delete("/imports/$batch")->assertRedirect(route('imports.index'));
+            $this->assertDatabaseMissing('mailbox_imports', ['batch_id' => $batch]);
+            $this->assertDatabaseCount('jobs', 2);
+        } finally {
+            DB::rollBack();
+        }
+
+        $this->assertDatabaseHas('mailbox_imports', ['id' => $batch, 'status' => 'Queued']);
+        $this->assertDatabaseCount('jobs', 1);
+        Storage::disk('import-staging')->assertExists("$owner->id/$batch");
+    }
+
     public function test_rechecks_promotion_and_late_context_are_scoped(): void
     {
         $accept = false;

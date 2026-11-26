@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\DeleteStagedImport;
 use App\Jobs\ImportMailbox;
 use App\Jobs\IndexPassage;
 use Illuminate\Http\Request;
@@ -118,7 +119,7 @@ class MailboxController extends Controller
     public function remove(Request $request, string $batch)
     {
         $owner = $request->user()->id;
-        $ids = DB::transaction(function () use ($owner, $batch) {
+        DB::transaction(function () use ($owner, $batch): void {
             DB::table('users')->where('id', $owner)->lockForUpdate()->first();
             $files = DB::table('mailbox_imports')->where('user_id', $owner)->where('batch_id', $batch);
             abort_unless($files->exists(), 404);
@@ -127,11 +128,10 @@ class MailboxController extends Controller
             $files->delete();
             DB::table('mail_messages')->where('user_id', $owner)->whereNotIn('id', DB::table('mailbox_entries')->select('message_id'))->delete();
 
-            return $ids;
+            foreach ($ids as $id) {
+                DeleteStagedImport::dispatch($owner, $id);
+            }
         });
-        foreach ($ids as $id) {
-            Storage::disk('import-staging')->delete("$owner/$id");
-        }
 
         return redirect()->route('imports.index')->with('evidence_changed', true);
     }

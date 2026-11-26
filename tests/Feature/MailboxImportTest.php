@@ -31,10 +31,17 @@ class MailboxImportTest extends TestCase
     public function test_unreadable_file_is_discarded_and_uncertain_messages_stay_separate(): void
     {
         Storage::fake('import-staging');
-        $this->actingAs(User::factory()->create());
+        $owner = User::factory()->create();
+        $this->actingAs($owner);
         $upload = fn ($body) => $this->post('/imports', ['mailbox' => UploadedFile::fake()->createWithContent('fixture', $body)])
             ->assertRedirect()->headers->get('Location');
         $bad = $upload('This file has no MBOX envelopes.');
+        $id = basename($bad);
+        $this->worker(true);
+        $this->assertDatabaseHas('mailbox_imports', ['id' => $id, 'status' => 'Could not import']);
+        $this->assertDatabaseCount('jobs', 1);
+        Storage::disk('import-staging')->assertExists("$owner->id/$id");
+
         $record = "From sender@example.test Wed Mar  5 12:00:00 2025\r\nSubject: HTML\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<p>Question?</p><blockquote>Earlier.</blockquote>\r\n";
         $good = $upload($record.$record);
         $this->worker();
@@ -43,6 +50,31 @@ class MailboxImportTest extends TestCase
         $this->assertDatabaseCount('mail_messages', 2);
         $this->assertDatabaseHas('mail_passages', ['quote_text' => 'Earlier.']);
         $this->assertSame([], Storage::disk('import-staging')->allFiles());
+    }
+
+    public function test_terminal_import_failure_queues_cleanup_for_an_already_missing_file(): void
+    {
+        $disk = Storage::fake('import-staging');
+        $owner = User::factory()->create();
+        $url = $this->actingAs($owner)->post('/imports', [
+            'mailbox' => UploadedFile::fake()->createWithContent('fixture.txt', 'Fixture'),
+        ])->assertRedirect()->headers->get('Location');
+        $id = basename($url);
+        $disk->delete("$owner->id/$id");
+
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $this->artisan('queue:work database --once')->assertSuccessful();
+        }
+
+        $this->assertDatabaseHas('mailbox_imports', ['id' => $id, 'status' => 'Could not import']);
+        $this->assertDatabaseCount('failed_jobs', 1);
+        $this->assertDatabaseCount('jobs', 1);
+
+        $this->artisan('queue:work database --once')->assertSuccessful();
+
+        $this->assertDatabaseCount('jobs', 0);
+        $this->assertDatabaseCount('failed_jobs', 1);
+        $disk->assertMissing("$owner->id/$id");
     }
 
     public function test_worker_resumes_and_repaired_upload_reuses_private_evidence(): void
@@ -60,6 +92,10 @@ class MailboxImportTest extends TestCase
         Storage::disk('import-staging')->assertExists("$owner->id/$id");
         $this->worker(true);
         $this->get($url)->assertSee('Processing')->assertSee('1 messages imported');
+        // A stale failure and redelivery must leave the staged file for the current cursor.
+        (new ImportMailbox($owner->id, $id))->failed(new \RuntimeException('Stale failure'));
+        Storage::disk('import-staging')->assertExists("$owner->id/$id");
+        $this->assertDatabaseHas('mailbox_imports', ['id' => $id, 'status' => 'Processing']);
         // Redeliver the original cursor after the worker has checkpointed it.
         ImportMailbox::dispatch($owner->id, $id);
         $this->worker();

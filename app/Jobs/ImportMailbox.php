@@ -28,17 +28,11 @@ class ImportMailbox implements ShouldQueue
     public function handle(Mailbox $mailbox): void
     {
         $disk = Storage::disk('import-staging');
-        $finished = DB::transaction(function () use ($mailbox, $disk) {
+        DB::transaction(function () use ($mailbox, $disk): void {
             DB::table('users')->where('id', $this->owner)->lockForUpdate()->first();
             $batch = $this->batchQuery()->lockForUpdate()->first();
-            if (! $batch) {
-                return true;
-            }
-            if (! in_array($batch->status, ['Queued', 'Processing'])) {
-                return true;
-            }
-            if ($batch->position !== $this->position) {
-                return false;
+            if (! $batch || ! in_array($batch->status, ['Queued', 'Processing']) || $batch->position !== $this->position) {
+                return;
             }
 
             $stream = $disk->readStream("$this->owner/$this->batch");
@@ -60,16 +54,12 @@ class ImportMailbox implements ShouldQueue
             $this->batchQuery()->update(['position' => $next, 'imported' => $batch->imported,
                 'unreadable' => $batch->unreadable, 'excluded' => $batch->excluded, 'updated_at' => now(),
                 'status' => $end ? $this->outcome($batch) : 'Processing']);
-            if (! $end) {
+            if ($end) {
+                DeleteStagedImport::dispatch($this->owner, $this->batch);
+            } else {
                 self::dispatch($this->owner, $this->batch, $next);
             }
-
-            return $end;
         });
-
-        if ($finished) {
-            $disk->delete("$this->owner/$this->batch");
-        }
     }
 
     private function retain(Mailbox $mailbox, array $parsed, int $ordinal): bool
@@ -136,23 +126,15 @@ class ImportMailbox implements ShouldQueue
 
     public function failed(?\Throwable $exception): void
     {
-        $cleanup = DB::transaction(function () {
+        DB::transaction(function (): void {
             $batch = $this->batchQuery()->lockForUpdate()->first();
-            if (! $batch) {
-                return true;
-            }
-            if (in_array($batch->status, ['Queued', 'Processing'])) {
-                if ($batch->position !== $this->position) {
-                    return false;
-                }
-                $this->batchQuery()->update(['status' => $batch->imported ? 'Partially imported' : 'Could not import',
-                    'updated_at' => now()]);
+            if (! $batch || ! in_array($batch->status, ['Queued', 'Processing']) || $batch->position !== $this->position) {
+                return;
             }
 
-            return true;
+            $this->batchQuery()->update(['status' => $batch->imported ? 'Partially imported' : 'Could not import',
+                'updated_at' => now()]);
+            DeleteStagedImport::dispatch($this->owner, $this->batch);
         });
-        if ($cleanup) {
-            Storage::disk('import-staging')->delete("$this->owner/$this->batch");
-        }
     }
 }
