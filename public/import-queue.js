@@ -2,8 +2,12 @@
     const link = document.querySelector('[data-import-progress]');
     if (!link) return;
 
-    const bar = link.querySelector('progress');
+    const bar = link.querySelector('[data-import-file-bar]');
     const label = link.querySelector('[data-import-progress-label]');
+    const indexing = link.querySelector('[data-import-indexing]');
+    const indexingBar = indexing.querySelector('progress');
+    const indexingLabel = indexing.querySelector('[data-import-indexing-label]');
+    const indexingStages = document.querySelectorAll('[data-indexing-stage]');
     const details = document.querySelector('[data-import-queue-files]');
     const count = document.querySelector('[data-import-queue-count]');
     const endpoint = new URL(link.href);
@@ -22,13 +26,24 @@
 
             const status = await response.json();
             const text = `${status.finished} of ${status.total} files processed`;
-            link.hidden = status.total === 0 || (link.hidden && status.finished === status.total);
+            const {screening, embedding, indexed, skipped} = status.indexing;
+            const prepared = indexed + skipped;
+            const passageTotal = prepared + screening + embedding;
+            link.hidden = status.total === 0 && passageTotal === 0;
             bar.max = Math.max(1, status.total);
             bar.value = status.finished;
             label.textContent = text;
 
+            indexing.hidden = passageTotal === 0;
+            indexingBar.max = Math.max(1, passageTotal);
+            indexingBar.value = prepared;
+            indexingLabel.textContent = `${prepared} of ${passageTotal} passages processed`;
+
             if (details) {
                 count.textContent = text;
+                for (const stage of indexingStages) {
+                    stage.textContent = status.indexing[stage.dataset.indexingStage];
+                }
                 if (previousDetails !== status.details && !details.contains(document.activeElement)) {
                     details.innerHTML = status.details;
                     previousDetails = status.details;

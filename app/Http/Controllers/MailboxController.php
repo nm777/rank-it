@@ -33,13 +33,25 @@ class MailboxController extends Controller
         $queue = $imports->where(fn (Builder $query) => $query->whereIn('batch_id', $activeBatches)
             ->orWhere('batch_id', '=', $latestBatch));
 
+        $stages = DB::table('mail_messages')
+            ->join('mail_passages', 'mail_passages.message_id', '=', 'mail_messages.id')
+            ->join('inference_work', 'inference_work.passage_id', '=', 'mail_passages.id')
+            ->where('mail_messages.user_id', $request->user()->id)
+            ->groupBy('inference_work.stage')->selectRaw('inference_work.stage, count(*) as total')->pluck('total', 'stage');
+        $indexing = [
+            'screening' => $stages->get('screen', 0),
+            'embedding' => $stages->get('embed', 0),
+            'indexed' => $stages->get('indexed', 0),
+            'skipped' => $stages->get('skipped', 0),
+        ];
+
         $headers = ['Cache-Control' => 'private, no-store'];
         if ($request->expectsJson() && ! $request->boolean('details')) {
             $counts = $queue->groupBy('status')->selectRaw('status, count(*) as total')->pluck('total', 'status');
             $total = $counts->sum();
             $finished = $total - $counts->only($activeStatuses)->sum();
 
-            return new JsonResponse(compact('total', 'finished'), headers: $headers);
+            return new JsonResponse(compact('total', 'finished', 'indexing'), headers: $headers);
         }
 
         $files = $queue->latest()->orderBy('filename')->orderBy('id')
@@ -51,11 +63,12 @@ class MailboxController extends Controller
             return new JsonResponse([
                 'total' => $total,
                 'finished' => $finished,
+                'indexing' => $indexing,
                 'details' => view('import-queue-files', compact('files'))->render(),
             ], headers: $headers);
         }
 
-        return response()->view('import-queue', compact('files', 'total', 'finished'), headers: $headers);
+        return response()->view('import-queue', compact('files', 'total', 'finished', 'indexing'), headers: $headers);
     }
 
     public function store(Request $request)

@@ -85,7 +85,8 @@ class ImportLifecycleTest extends TestCase
         $this->actingAs($other);
         $this->upload(['private.txt' => 'Private note']);
         $this->actingAs($owner);
-        $this->getJson('/imports/queue')->assertExactJson(['total' => 0, 'finished' => 0]);
+        $emptyIndexing = ['screening' => 0, 'embedding' => 0, 'indexed' => 0, 'skipped' => 0];
+        $this->getJson('/imports/queue')->assertExactJson(['total' => 0, 'finished' => 0, 'indexing' => $emptyIndexing]);
         $this->get('/imports/queue')->assertSee('No imports in the queue')->assertDontSee('private.txt');
 
         $batch = $this->upload(['finished.txt' => 'Finished note', 'processing.txt' => 'Processing note']);
@@ -96,7 +97,7 @@ class ImportLifecycleTest extends TestCase
         $this->travel(1)->seconds();
         $this->upload(['waiting.txt' => 'Waiting note']);
 
-        $this->getJson('/imports/queue')->assertExactJson(['total' => 3, 'finished' => 1]);
+        $this->getJson('/imports/queue')->assertExactJson(['total' => 3, 'finished' => 1, 'indexing' => $emptyIndexing]);
         $this->get('/imports/queue')->assertSee('1 of 3 files processed')
             ->assertSee('finished.txt')->assertSee('processing.txt')->assertSee('waiting.txt')
             ->assertSee('Processing')->assertSee('Queued')->assertSee('1 imported')->assertDontSee('private.txt');
@@ -107,8 +108,22 @@ class ImportLifecycleTest extends TestCase
         config(['inference.cap' => 0]);
         $this->drain();
 
-        $this->getJson('/imports/queue')->assertExactJson(['total' => 1, 'finished' => 1]);
+        $this->getJson('/imports/queue')->assertExactJson(['total' => 1, 'finished' => 1, 'indexing' => [
+            'screening' => 2, 'embedding' => 0, 'indexed' => 0, 'skipped' => 0,
+        ]]);
         $this->get('/imports/queue')->assertSee('waiting.txt')->assertDontSee('finished.txt');
+        DB::table('inference_work')->whereIn('passage_id', DB::table('mail_passage_sources')->where('user_id', $owner->id)
+            ->where('wording', 'Processing note')->select('id'))->update(['stage' => 'skipped']);
+        $latestWork = DB::table('inference_work')->whereIn('passage_id', DB::table('mail_passage_sources')->where('user_id', $owner->id)
+            ->where('wording', 'Waiting note')->select('id'));
+        $latestWork->update(['stage' => 'embed']);
+        $this->getJson('/imports/queue')->assertJsonPath('indexing', [
+            'screening' => 0, 'embedding' => 1, 'indexed' => 0, 'skipped' => 1,
+        ]);
+        $latestWork->update(['stage' => 'indexed']);
+        $this->getJson('/imports/queue?details=1')->assertJsonPath('indexing', [
+            'screening' => 0, 'embedding' => 0, 'indexed' => 1, 'skipped' => 1,
+        ]);
     }
 
     public function test_batch_formats_retries_and_private_collection_controls(): void

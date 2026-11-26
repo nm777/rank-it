@@ -100,8 +100,12 @@
 </header>
 @auth
     <a class="import-progress" href="{{ route('imports.queue') }}" data-import-progress hidden>
-        <span>Import queue <span aria-hidden="true">·</span> <span data-import-progress-label></span></span>
-        <progress aria-label="Files processed" max="1" value="0"></progress>
+        <span>File import <span aria-hidden="true">·</span> <span data-import-progress-label></span></span>
+        <progress data-import-file-bar aria-label="File import" max="1" value="0"></progress>
+        <span data-import-indexing hidden>
+            Meaning-based search <span aria-hidden="true">·</span> <span data-import-indexing-label></span>
+            <progress aria-label="Meaning-based search preparation" max="1" value="0"></progress>
+        </span>
     </a>
 @endauth
 <main>
