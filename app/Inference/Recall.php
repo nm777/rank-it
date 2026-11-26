@@ -15,19 +15,18 @@ class Recall
         $search = implode("\n", [...$context, $question]);
         $memoryVersion = Conversation::fingerprint('memory');
         $passageVersion = Conversation::fingerprint('passage');
+        $passages = PassageSources::forOwner($owner);
+        $passageSql = $passages->toSql();
+        $sourceBindings = [$owner, ...$passages->getBindings()];
         $sources = <<<SQL
             select 'memory:' || id as key, wording, 'You' as author, created_at::date::text as date, identified_person, experience_date, corrects_passage_id, $memoryVersion as version
             from memories where user_id = ?
             union all
             select 'passage:' || id, wording,
                 case when quote_text is null then sender else 'Quoted history in message from ' || coalesce(sender,'unknown sender') end, sent_date, null::text, null::text, null::bigint, $passageVersion
-            from (select distinct on (case when parent_identity is not null and quote_text is not null
-                    then parent_identity || ':' || quote_text else id::text end) *
-                  from mail_passage_sources where user_id = ? and source_id is null order by
-                  case when parent_identity is not null and quote_text is not null
-                    then parent_identity || ':' || quote_text else id::text end, id) p
+            from ($passageSql) p
             SQL;
-        $priorSources = $previous ? DB::query()->fromRaw("($sources) as sources", [$owner, $owner])
+        $priorSources = $previous ? DB::query()->fromRaw("($sources) as sources", $sourceBindings)
             ->whereIn('key', $previous)->orderBy('key')->limit(6)->get()->all() : [];
         $referents = array_map(fn ($source) => mb_substr($source->wording, 0, 180), $priorSources);
         if ($referents) {
@@ -40,14 +39,14 @@ class Recall
                  where word = any(tsvector_to_array(to_tsvector('english', left(wording, 50000) || ' ' || coalesce(identified_person,''))))) as overlap
                 from sources cross join terms)
             select * from matches where exact or overlap > 0 order by exact desc, overlap desc, key limit 8",
-            [$owner, $owner, $search, $question]);
+            [...$sourceBindings, $search, $question]);
         $semantic = [];
         $this->providers->select(DB::table('embedding_index_state')->value('profile'));
         $configuration = $this->providers->configuration();
         $indexed = "with sources as ($sources) select sources.*, w.embedding from sources join inference_work w
             on sources.key = coalesce('memory:' || w.memory_id, 'passage:' || w.passage_id)
             where w.stage = 'indexed' and w.configuration = ?::jsonb";
-        $bindings = [$owner, $owner, $configuration];
+        $bindings = [...$sourceBindings, $configuration];
         $estimate = $this->providers->estimate('embed');
         if ($estimate !== null && DB::selectOne("$indexed limit 1", $bindings)
             && ($call = $this->budget->reserve('answer', $estimate, $owner))) {
@@ -89,7 +88,7 @@ class Recall
             }
         }
         if ($passageIds) {
-            $related = DB::query()->fromRaw("($sources) as sources", [$owner, $owner])
+            $related = DB::query()->fromRaw("($sources) as sources", $sourceBindings)
                 ->whereIn('corrects_passage_id', $passageIds)
                 ->orWhereIn('key', array_map(fn ($id) => 'passage:'.$id, $passageIds))
                 ->orderByDesc('date')->orderBy('key')->limit(8)->get();

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Inference\AiOutput;
 use App\Inference\Budget;
 use App\Inference\Conversation;
+use App\Inference\PassageSources;
 use App\Inference\Providers;
 use App\Inference\Ratings;
 use App\Inference\RatingSearch;
@@ -136,10 +137,8 @@ class MemoryController extends Controller
             ->whereRaw('strpos(lower(wording), lower(?)) > 0', [trim($data['wording'])])
             ->latest()->orderByDesc('id')->limit(50)->get();
 
-        $passages = DB::table('mail_passage_sources')->where('user_id', $request->user()->id)
-            ->whereNull('source_id')
+        $passages = PassageSources::forOwner($request->user()->id)
             ->whereRaw('strpos(lower(coalesce(quote_text, wording)), lower(?)) > 0', [trim($data['wording'])])
-            ->selectRaw("distinct on (case when quote_text is not null and parent_identity is not null then parent_identity || ':' || quote_text else id::text end) *")
             ->limit(50)->get();
 
         return view('memories', ['results' => $results, 'passages' => $passages, 'query' => $data['wording']]);

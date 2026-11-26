@@ -92,6 +92,40 @@ class RecallTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_search_and_recall_select_the_first_quote_per_parent_within_the_owner_collection(): void
+    {
+        config(['inference.cap' => 0]);
+        $owner = User::factory()->create();
+        $other = User::factory()->create();
+        $quote = 'The spare key is in the locker.';
+        $parent = hash('sha256', 'missing parent');
+        $addQuote = function (User $user, string $identity, string $parentIdentity) use ($quote): int {
+            $message = DB::table('mail_messages')->insertGetId([
+                'user_id' => $user->id,
+                'identity' => hash('sha256', $identity),
+                'parent_identity' => $parentIdentity,
+            ]);
+
+            return DB::table('mail_passages')->insertGetId([
+                'message_id' => $message,
+                'ordinal' => 0,
+                'wording' => '> '.$quote,
+                'quote_text' => $quote,
+            ]);
+        };
+        $addQuote($other, 'foreign reply to same parent', $parent);
+        $addQuote($other, 'foreign reply to another parent', hash('sha256', 'foreign parent'));
+        $first = $addQuote($owner, 'first reply', $parent);
+        $addQuote($owner, 'second reply', $parent);
+        $separate = $addQuote($owner, 'reply to another parent', hash('sha256', 'another parent'));
+
+        $this->actingAs($owner)->post('/search', ['wording' => 'LOCKER'])
+            ->assertViewHas('passages', fn ($passages) => $passages->pluck('id')->sort()->values()->all() === [$first, $separate]);
+        $this->post('/input', ['wording' => 'Where is the spare key?', 'intent' => 'ask'])
+            ->assertViewHas('results', fn ($results) => array_keys($results) === ['passage:'.$first, 'passage:'.$separate]);
+        Http::assertNothingSent();
+    }
+
     public function test_jev_routes_implicit_input_and_offers_a_choice_on_uncertainty_or_failure(): void
     {
         $scores = static fn ($save, $ask) => ['answers' => ['save' => ['noul' => $save], 'ask' => ['noul' => $ask]],
