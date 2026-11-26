@@ -5,22 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#02274e">
     <title>@yield('title') · Rank It</title>
+    @php($appVersion = \App\AppVersion::current())
     <script>
         if (navigator.standalone === true) {
             document.documentElement.classList.add('ios-home-screen');
         }
     </script>
-    <script src="{{ asset('theme.js') }}"></script>
-    <link rel="stylesheet" href="{{ asset('app.css') }}?v={{ hash_file('sha256', public_path('app.css')) }}">
+    <script src="{{ asset('theme.js') }}?v={{ $appVersion }}"></script>
+    <script src="{{ asset('app-update.js') }}?v={{ $appVersion }}" defer></script>
+    <link rel="stylesheet" href="{{ asset('app.css') }}?v={{ $appVersion }}">
     <link rel="manifest" href="{{ asset('rank-it.webmanifest') }}">
     <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('rank-it-192.png') }}">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('rank-it-180.png') }}">
     @auth
-        <script src="{{ asset('install-app.js') }}" defer></script>
+        <script src="{{ asset('install-app.js') }}?v={{ $appVersion }}" defer></script>
     @endauth
 </head>
 <body class="@yield('page-class')">
 <div class="status-bar-surface" aria-hidden="true"></div>
+<div aria-live="polite">
+    <div class="app-update" data-app-version="{{ $appVersion }}" data-version-url="{{ route('app-version.show', absolute: false) }}" hidden>
+        A new version is available. <button type="button" data-reload-app>Click here to refresh</button>
+    </div>
+</div>
 <header>
     <a class="brand" href="{{ route('memories.index') }}">
         <img src="{{ asset('rank-it-180.png') }}" width="36" height="36" alt="">
@@ -54,7 +61,7 @@
                 <a href="{{ route('imports.index') }}">Import</a>
                 <a href="{{ route('profile.show') }}">Profile</a>
                 <button type="button" id="install-app" hidden>Add to Home Screen</button>
-                <button type="button" id="reload-app">Reload app</button>
+                <button type="button" id="reload-app" data-reload-app>Reload app</button>
                 <form method="post" action="{{ route('logout') }}">
                     @csrf
                     <button type="submit">Log out</button>
@@ -72,11 +79,6 @@
         <script>
             const siteMenu = document.querySelector('.site-menu');
             const menuToggle = siteMenu.querySelector('summary');
-
-            document.querySelector('#reload-app').addEventListener('click', () => {
-                siteMenu.open = false;
-                window.location.reload();
-            });
 
             document.addEventListener('click', event => {
                 if (!siteMenu.contains(event.target) || event.target.closest('.site-menu a')) {

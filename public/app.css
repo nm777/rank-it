@@ -23,6 +23,23 @@
 :root[data-theme="dark"] { color-scheme: dark; }
 * { box-sizing: border-box; }
 body { margin: 0; }
+.app-update {
+    padding: 0 1rem;
+    background: var(--blue-wash);
+    text-align: center;
+    font-size: .875rem;
+}
+.app-update button {
+    min-height: 44px;
+    padding: 0 .25rem;
+    border: 0;
+    background: transparent;
+    color: var(--accent);
+    font: inherit;
+    font-weight: 650;
+    text-decoration: underline;
+}
+.app-update button:focus-visible { outline-offset: -3px; }
 main { max-width: 44rem; margin: auto; padding: 1rem; }
 .status-bar-surface { display: none; }
 @supports (background-clip: text) {

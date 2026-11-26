@@ -1,9 +1,16 @@
 <?php
 
+use App\AppVersion;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\MailboxController;
 use App\Http\Controllers\MemoryController;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Route;
+
+Route::get('/app-version', fn (): JsonResponse => response()->json(
+    ['version' => AppVersion::current()],
+    headers: ['Cache-Control' => 'no-store'],
+))->withoutMiddleware('web')->name('app-version.show');
 
 Route::middleware('guest')->group(function () {
     Route::view('/login', 'login')->name('login');
