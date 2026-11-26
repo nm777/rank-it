@@ -11,6 +11,7 @@ WORKDIR /app
 COPY . .
 RUN touch .env \
     && composer install --no-interaction --prefer-dist --optimize-autoloader \
+    && php -r 'require "vendor/autoload.php"; echo App\AppVersion::sourceHash(getcwd()), PHP_EOL;' > bootstrap/release-id \
     && mkdir -p /var/lib/rank-it/staging /var/www/.config \
     && chown -R www-data:www-data /app/storage /app/bootstrap/cache /var/lib/rank-it/staging /var/www/.config \
     && chmod 700 /var/lib/rank-it/staging

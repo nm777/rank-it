@@ -8,4 +8,5 @@ storage/framework/views/*
 storage/framework/sessions/*
 storage/app/private/*
 bootstrap/cache/*.php
+bootstrap/release-id
 Rank It.*
