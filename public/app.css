@@ -318,12 +318,41 @@ small { display: block; }
 .entry-form { gap: .4rem; }
 .entry-form textarea { padding: .55rem .7rem; }
 .entry-form button { min-height: 44px; padding-block: .4rem; }
+.entry-form .actions:has([data-photo-open]:not([hidden])) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-self: start;
+}
+
+@media (max-width: 40rem) {
+    .entry-form .actions:has([data-photo-open]:not([hidden])) {
+        justify-self: stretch;
+    }
+}
+
 .memory-search { display: flex; gap: .5rem; }
 .memory-search input { min-width: 0; }
 .memory-pagination { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: .75rem; }
 .memory-pagination a { display: inline-flex; align-items: center; min-height: 44px; }
 #memory-load-status:empty { display: none; }
 
-@media (max-width: 40rem) and (orientation: portrait) {
-    .entry-form > button { width: 100%; }
+.photo-picker {
+    min-width: 0;
+}
+
+.selected-photo ul {
+    margin: 0;
+    padding-inline-start: 1.25rem;
+    overflow-wrap: anywhere;
+}
+
+.memory-photo {
+    max-width: min(100%, 32rem);
+    max-height: 24rem;
+    object-fit: contain;
+    border-radius: .5rem;
+}
+
+.memory-photo-item {
+    margin: 0 0 1rem;
 }

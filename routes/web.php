@@ -3,6 +3,7 @@
 use App\AppVersion;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\MailboxController;
+use App\Http\Controllers\MemoryAttachmentController;
 use App\Http\Controllers\MemoryController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Route;
@@ -49,4 +50,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/memories', [MemoryController::class, 'store'])->name('memories.store');
     Route::get('/memories/{memory}', [MemoryController::class, 'show'])->whereUuid('memory')->name('memories.show');
     Route::patch('/memories/{memory}', [MemoryController::class, 'update'])->whereUuid('memory')->name('memories.update');
+    Route::post('/memories/{memory}/attachments', [MemoryAttachmentController::class, 'store'])
+        ->whereUuid('memory')->name('attachments.store');
+    Route::get('/memories/{memory}/attachments/{attachment}', [MemoryAttachmentController::class, 'show'])
+        ->whereUuid('memory')->where('attachment', '[0-9]{1,18}')->name('attachments.show');
+    Route::delete('/memories/{memory}/attachments/{attachment}', [MemoryAttachmentController::class, 'delete'])
+        ->whereUuid('memory')->where('attachment', '[0-9]{1,18}')->name('attachments.delete');
 });

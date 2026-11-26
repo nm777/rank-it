@@ -11,6 +11,7 @@ use App\Inference\Ratings;
 use App\Inference\RatingSearch;
 use App\Inference\Recall;
 use App\Jobs\IndexPassage;
+use App\MemoryPhoto;
 use App\SaveMemory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Client\HttpClientException;
@@ -19,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\Cursor;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 
 class MemoryController extends Controller
 {
@@ -26,6 +28,7 @@ class MemoryController extends Controller
     {
         return view('memories', [
             'results' => $request->user()->memories()->latest()->orderByDesc('id')->limit(10)->get(),
+            'savedWithPhoto' => $request->session()->get('saved_with_photo') ?: null,
             'savedMemory' => $request->session()->has('saved_memory_id')
                 ? $request->user()->memories()->find($request->session()->get('saved_memory_id'))
                 : null,
@@ -56,10 +59,22 @@ class MemoryController extends Controller
         return view('browse-memories', compact('memories', 'search'));
     }
 
-    public function input(Request $request, Recall $recall, Conversation $conversation, Providers $providers, Budget $budget, SaveMemory $saveMemory)
+    public function input(Request $request, Recall $recall, Conversation $conversation, Providers $providers, Budget $budget, SaveMemory $saveMemory, MemoryPhoto $photo)
     {
         $data = $this->validateMemory($request);
         $choice = $request->validate(['intent' => ['nullable', 'in:ask,save']])['intent'] ?? null;
+        $hasSelection = array_filter((array) $request->file('photos')) !== []
+            || ($request->input('photos') ?? []) !== [];
+        if ($hasSelection || $request->file('photo') !== null || $request->input('photo') !== null) {
+            if ($choice === 'ask') {
+                throw ValidationException::withMessages(['photo' => 'Photos can be added when saving a memory.']);
+            }
+
+            $preparedPhotos = $hasSelection ? $photo->prepareSelection($request) : [$photo->prepare($request)];
+
+            return $this->saved($saveMemory->handle($request->user(), $data, preparedPhotos: $preparedPhotos))
+                ->with('saved_with_photo', true);
+        }
         $text = trim($data['wording']);
         if ($request->boolean('followup') && ! $request->boolean('replay') && preg_match('/^(?:please )?(?:remember (?:this|that)|save (?:this|that)(?: fact)?)[:,]?\s+(.+)$/isu', $text, $explicit)) {
             $data['wording'] = trim($explicit[1]);
@@ -161,9 +176,12 @@ class MemoryController extends Controller
 
     public function show(Request $request, string $memory)
     {
+        $entry = $request->user()->memories()->findOrFail($memory);
+
         return view('memory', [
             'ratings' => DB::table('ratings')->where('memory_id', $memory)->get(),
-            'memory' => $request->user()->memories()->findOrFail($memory),
+            'memory' => $entry,
+            'attachments' => DB::table('memory_attachments')->where('memory_id', $entry->id)->orderBy('id')->pluck('id'),
         ]);
     }
 

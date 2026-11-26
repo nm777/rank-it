@@ -2,11 +2,13 @@
 @section('title', 'My memories')
 @section('page-class', 'memory-entry')
 @section('content')
-<form method="post" action="{{ route('memories.input') }}" class="stack entry-form">
+<form method="post" enctype="multipart/form-data" action="{{ route('memories.input') }}" class="stack entry-form">
     @csrf
     <label for="wording">Write a memory or ask a question</label>
     <textarea id="wording" name="wording" rows="3" enterkeyhint="send" maxlength="10000" required @if (!isset($query)) autofocus @endif>{{ "\n" }}{{ old('wording', $query ?? '') }}</textarea>
-    <button type="submit">Submit</button>
+    <x-photo-picker :multiple="true">
+        <button type="submit" data-memory-submit>Submit</button>
+    </x-photo-picker>
 </form>
 <script>
 document.querySelector('#wording').addEventListener('keydown', event => {
@@ -17,6 +19,9 @@ document.querySelector('#wording').addEventListener('keydown', event => {
 });
 </script>
 @if (isset($savedMemory))
+    @if (isset($savedWithPhoto))
+        <p><a href="{{ route('memories.show', $savedMemory) }}">View saved memory and photo</a></p>
+    @endif
     @include('replay-input', ['replayWording' => $savedMemory->wording, 'replayDate' => $savedMemory->experience_date])
 @endif
 <section class="answer-results" aria-labelledby="memory-list-heading">
