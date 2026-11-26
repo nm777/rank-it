@@ -79,7 +79,12 @@ a { color: var(--accent); }
     font-weight: 750;
     text-decoration: none;
 }
-.brand img { border: 1px solid #f8edcf40; border-radius: .45rem; }
+.brand img {
+    width: 44px;
+    height: 44px;
+    border: 1px solid #f8edcf40;
+    border-radius: .45rem;
+}
 .site-menu {
     position: relative;
 }
@@ -93,8 +98,8 @@ a { color: var(--accent); }
 }
 .site-menu > summary::-webkit-details-marker { display: none; }
 .site-menu > summary span {
-    width: 19px;
-    height: 14px;
+    width: 21px;
+    height: 16px;
     border-block: 2px solid currentColor;
     background: linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat;
 }
@@ -129,7 +134,7 @@ a { color: var(--accent); }
 .theme-switcher:not([hidden]) {
     display: grid;
     overflow: hidden;
-    grid-template-columns: repeat(3, 44px);
+    grid-template-columns: repeat(3, 40px);
     gap: .125rem;
     padding: .125rem;
     border: 1px solid var(--line);
@@ -139,7 +144,7 @@ a { color: var(--accent); }
 .theme-switcher button {
     display: grid;
     place-items: center;
-    min-height: 44px;
+    min-height: 40px;
     padding: 0;
     border: 0;
     border-radius: 0;
@@ -162,8 +167,8 @@ a { color: var(--accent); }
 .theme-switcher button:focus-visible { outline-offset: -3px; }
 .theme-switcher button[aria-pressed="true"]:focus-visible { outline-color: var(--button-text); }
 .theme-switcher svg {
-    width: 1.1rem;
-    height: 1.1rem;
+    width: 1rem;
+    height: 1rem;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.7;
@@ -279,6 +284,10 @@ small { display: block; }
     flex: 0 0 44px;
     min-height: 44px;
     border-radius: .5rem;
+}
+.memory-card-edit svg {
+    width: 22px;
+    height: 22px;
 }
 .memory-card-edit:hover { background: var(--blue-wash); }
 .evidence-actions { gap: .25rem .75rem; }
