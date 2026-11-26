@@ -25,7 +25,7 @@ class MailboxController extends Controller
     {
         $multiple = $request->hasFile('files');
         $input = $request->validate($multiple
-            ? ['files' => 'required|array|min:1|max:4', 'files.*' => 'required|file|max:16384']
+            ? ['files' => 'required|array|min:1|max:100', 'files.*' => 'required|file|max:16384']
             : ['mailbox' => 'required|file|max:16384']);
         $files = $multiple ? $input['files'] : [$input['mailbox']];
         $owner = $request->user()->id;

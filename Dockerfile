@@ -6,7 +6,8 @@ RUN apt-get update \
     && docker-php-ext-configure gd --with-jpeg --with-webp \
     && docker-php-ext-install exif gd pdo_pgsql pcntl zip \
     && rm -rf /var/lib/apt/lists/*
-RUN printf "upload_max_filesize=16M\npost_max_size=80M\n" > /usr/local/etc/php/conf.d/mailbox.ini
+# Parse one extra file so Laravel can reject oversized batches before staging them.
+RUN printf "upload_max_filesize=16M\npost_max_size=1610M\nmax_file_uploads=101\n" > /usr/local/etc/php/conf.d/mailbox.ini
 COPY --from=composer /usr/bin/composer /usr/local/bin/composer
 WORKDIR /app
 COPY . .

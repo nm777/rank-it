@@ -52,6 +52,31 @@ class ImportLifecycleTest extends TestCase
         $this->assertDatabaseCount('failed_jobs', 0);
     }
 
+    public function test_import_batch_accepts_one_hundred_files_and_rejects_larger_uploads(): void
+    {
+        $this->actingAs(User::factory()->create());
+        $files = [];
+        for ($number = 1; $number <= 100; $number++) {
+            $files["note-$number.txt"] = "Note $number";
+        }
+        $oversizedBatch = $files + ['extra.txt' => 'Extra note'];
+        $uploads = [];
+        foreach ($oversizedBatch as $name => $body) {
+            $uploads[] = UploadedFile::fake()->createWithContent($name, $body);
+        }
+
+        $this->from('/imports')->post('/imports', ['files' => $uploads])
+            ->assertRedirect('/imports')->assertSessionHasErrors('files');
+        $this->assertDatabaseCount('mailbox_imports', 0);
+        $this->assertSame([], Storage::disk('import-staging')->allFiles());
+
+        $batch = $this->upload($files);
+
+        $this->assertSame(100, DB::table('mailbox_imports')->where('batch_id', $batch)->count());
+        $this->assertDatabaseCount('jobs', 100);
+        $this->assertCount(100, Storage::disk('import-staging')->allFiles());
+    }
+
     public function test_batch_formats_retries_and_private_collection_controls(): void
     {
         $owner = User::factory()->create();

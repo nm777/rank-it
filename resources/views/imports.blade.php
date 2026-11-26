@@ -4,7 +4,7 @@
 <h1>Mailbox imports</h1>
 <form class="stack" method="post" enctype="multipart/form-data" action="{{ route('imports.store') }}">
     @csrf
-    <label for="mailbox">Choose up to four EML, MBOX, DOCX, PDF, Excel (.xlsx or .xls), TXT or Markdown files (16 MB each)</label>
+    <label for="mailbox">Choose up to 100 EML, MBOX, DOCX, PDF, Excel (.xlsx or .xls), TXT or Markdown files (16 MB each)</label>
     <input type="file" name="files[]" multiple id="mailbox" required>
     <p>Importing makes documents and message bodies searchable in your private collection. PDFs need selectable text. Attachments are skipped.</p>
     <button>Import batch</button>
