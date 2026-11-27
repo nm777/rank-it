@@ -91,6 +91,21 @@ main { padding-bottom: 4rem; }
 }
 .import-progress-row button:hover { background: var(--blue-wash); }
 .import-file-counts { color: var(--muted-ink); font-size: .875rem; }
+.import-batch-spinner:not([hidden]) {
+    display: inline-block;
+    width: .9em;
+    height: .9em;
+    margin-inline-end: .25em;
+    border: .125em solid currentColor;
+    border-inline-end-color: transparent;
+    border-radius: 50%;
+    vertical-align: -.08em;
+    animation: import-batch-spin .75s linear infinite;
+}
+@keyframes import-batch-spin { to { transform: rotate(1turn); } }
+@media (prefers-reduced-motion: reduce) {
+    .import-batch-spinner { animation-duration: 0s; }
+}
 h1 { font-size: clamp(1.8rem, 5vw, 2.5rem); line-height: 1.15; margin: 1.4rem 0; }
 h2 { font-size: 1.25rem; }
 a { color: var(--accent); }
