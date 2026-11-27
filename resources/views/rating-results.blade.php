@@ -8,7 +8,7 @@
 @foreach ([$confirmed, $uncertain] as $rows)
 @if ($loop->last && $rows)<h2>Uncertain dates</h2><p>These ratings are excluded from the confirmed count.</p>@endif
 @foreach ($rows as $row)
-<x-memory-card>{{ $row->identified_person ?? $row->subject }} {{ $row->aspect }} · {{ $row->score }}{{ $row->scale !== null ? '/'.$row->scale : ' (scale unknown)' }}
+<x-memory-card>{{ $row->identified_person ?? $row->subject }} received a rating of {{ $row->score }}{{ $row->scale !== null ? ' out of '.$row->scale : ' (scale unknown)' }}@if ($row->aspect) for {{ $row->aspect }}@endif.
  · {{ $row->mine ? 'You' : ($row->sender ?: 'Unknown author') }} · Rated {{ $row->created_at ?? $row->sent_date ?? 'date unknown' }} · Experience {{ $row->experience ?? 'date unknown' }}<x-slot:actions>
 @if ($row->memory_id)<a href="{{ route('memories.show', [$row->memory_id, 'highlight' => 1]) }}#passage">Original wording</a>
 @else<a href="{{ route('passages.show', $row->passage_id) }}#passage-{{ $row->passage_id }}">Original score</a>

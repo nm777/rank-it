@@ -6,7 +6,7 @@ class AnswerValidator
 {
     /**
      * @param  array<string, array{wording: string, date: ?string, experience: ?string}>  $passages
-     * @return array{claims: list<array{key: string, quote: string}>, partial: bool, missing: ?string, conflict: bool, uncertain: list<array{key: string, quote: string}>, clarification: list<string>, confirmedCount: ?int}|null
+     * @return array{summary: ?string, claims: list<array{key: string, quote: string}>, partial: bool, missing: ?string, conflict: bool, uncertain: list<array{key: string, quote: string}>, clarification: list<string>, confirmedCount: ?int}|null
      */
     public static function validate(mixed $draft, string $question, array $passages): ?array
     {
@@ -55,6 +55,11 @@ class AnswerValidator
 
         $confirmedCount = in_array(null, $matchesFound, true) ? null : count(array_unique($matchesFound));
 
-        return compact('claims', 'partial', 'missing', 'conflict', 'uncertain', 'clarification', 'confirmedCount');
+        $summary = is_string($draft['summary'] ?? null) ? trim($draft['summary']) : '';
+        if ($summary === '' || ! $claims || count($claims) !== count($draft['claims']) || count($clarification) > 1) {
+            $summary = null;
+        }
+
+        return compact('summary', 'claims', 'partial', 'missing', 'conflict', 'uncertain', 'clarification', 'confirmedCount');
     }
 }

@@ -50,7 +50,7 @@ class RecallTest extends TestCase
 
             return Http::response(['choices' => [['message' => ['content' => json_encode(['claims' => [
                 ['source' => $key, 'quote' => $original], ['source' => $key, 'quote' => 'A fabricated fact'],
-                ['source' => 'passage:999999', 'quote' => $original]], 'partial' => false])]]],
+                ['source' => 'passage:999999', 'quote' => $original]], 'summary' => 'The spare is in C-23.', 'partial' => false])]]],
                 'usage' => ['prompt_tokens' => 20, 'completion_tokens' => 10]]);
         });
         $this->actingAs($owner)->post('/imports', ['mailbox' => UploadedFile::fake()->createWithContent(
@@ -59,7 +59,7 @@ class RecallTest extends TestCase
         config(['inference.reserve' => 10000000]);
         $response = $this->post('/input', ['wording' => 'Where is the spare for the lock?'])
             ->assertOk()->assertSee($original)->assertSee('support only part')->assertDontSee('A fabricated fact')
-            ->assertDontSee($foreign->id)->assertSee('Maya');
+            ->assertDontSee($foreign->id)->assertDontSee('The spare is in C-23.')->assertSee('Maya');
         $id = DB::table('mail_passages')->where('wording', $original)->sole()->id;
         $link = route('passages.show', ['passage' => $id, 'start' => 0, 'length' => mb_strlen($original)]).'#evidence';
         $response->assertSee($link);
@@ -176,19 +176,22 @@ class RecallTest extends TestCase
     {
         $owner = User::factory()->create();
         config(['app.env' => 'local']);
-        $wording = 'After lunch I parked in space 42 on level five.';
+        $wording = 'After lunch I parked in space 42 on level five, near the <North> entrance.';
+        $summary = 'You parked on level five in space 42, near the <North> entrance.';
         $this->actingAs($owner)->post('/input', ['wording' => $wording, 'intent' => 'save']);
         $id = $owner->memories()->sole()->id;
         Http::fake(['answer.test/*' => Http::response(['choices' => [['message' => ['content' => json_encode([
-            'claims' => [['source' => 'memory:'.$id, 'quote' => 'space 42 on level five']],
+            'summary' => $summary,
+            'claims' => [['source' => 'memory:'.$id, 'quote' => 'space 42 on level five, near the <North> entrance']],
             'partial' => true, 'missing' => 'meter expiration',
         ])]]], 'usage' => ['prompt_tokens' => 12, 'completion_tokens' => 8]])]);
         $link = route('memories.show', ['memory' => $id, 'highlight' => 1,
-            'start' => mb_strpos($wording, 'space 42'), 'length' => mb_strlen('space 42 on level five')]).'#evidence';
+            'start' => mb_strpos($wording, 'space 42'), 'length' => mb_strlen('space 42 on level five, near the <North> entrance')]).'#evidence';
         $this->post('/input', ['wording' => 'Which parking space and meter expiration?', 'intent' => 'ask'])
             ->assertSee('Missing evidence for “meter expiration”')->assertSee($link)
-            ->assertSee('Answer model')->assertSee('completion_tokens');
-        $this->get($link)->assertSee('After lunch I parked in <mark id="evidence">space 42 on level five</mark>.', false);
+            ->assertSeeInOrder([$summary, 'Supporting passages', 'space 42 on level five, near the <North> entrance'])
+            ->assertDontSee($summary, false)->assertSee('Answer model')->assertSee('completion_tokens');
+        $this->get($link)->assertSee('After lunch I parked in <mark id="evidence">space 42 on level five, near the &lt;North&gt; entrance</mark>.', false);
     }
 
     public function test_embedding_and_answer_outages_still_open_wording_matches(): void

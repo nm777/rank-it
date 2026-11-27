@@ -17,9 +17,15 @@
     @elseif ($answer !== null && !$answer['claims'] && !$answer['uncertain'])
         <p>The matching passages do not establish an answer.</p>
     @elseif ($answer !== null)
+        @if (isset($answer['summary']))
+            <p class="answer-wording">{{ $answer['summary'] }}</p>
+        @endif
         @if ($answer['conflict'])<p>The sources give conflicting accounts.</p>@endif
         @if (preg_match('/\b(?:how many|count|list|all|every)\b/i', $question))
             <p>@if ($answer['confirmedCount'] !== null){{ $answer['confirmedCount'] }} confirmed {{ Str::plural('match', $answer['confirmedCount']) }} found. @endif Search coverage may be incomplete.</p>
+        @endif
+        @if (isset($answer['summary']))
+            <h2>Supporting passages</h2>
         @endif
         @foreach ($answer['claims'] as $claim)
             <x-memory-card>“{{ $claim['quote'] }}”<x-slot:actions>@include('source-link', ['source' => $results[$claim['key']], 'excerpt' => $claim['quote']])@include('dismiss-source', ['key' => $claim['key']])</x-slot:actions></x-memory-card>

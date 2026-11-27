@@ -36,6 +36,7 @@ class AnswerValidatorTest extends TestCase
         ]);
 
         $this->assertSame([
+            'summary' => null,
             'claims' => [['key' => 'memory:1', 'quote' => 'Hired Lee.']],
             'partial' => true,
             'missing' => null,
@@ -61,11 +62,13 @@ class AnswerValidatorTest extends TestCase
                 ['source' => 'memory:3', 'quote' => 'Hired Rae.', 'match' => 'Rae'],
                 ['source' => 'memory:4', 'quote' => 'Hired Sam.', 'match' => 'Sam'],
             ],
+            'summary' => 'Lee, Pat, Rae and Sam were hired.',
             'partial' => false,
         ];
 
         $answer = AnswerValidator::validate($draft, 'Who was hired in 2025-03?', $sources);
 
+        $this->assertNull($answer['summary']);
         $this->assertSame([['key' => 'memory:1', 'quote' => 'Hired Lee.']], $answer['claims']);
         $this->assertSame([
             ['key' => 'memory:2', 'quote' => 'Hired Pat.'],
@@ -98,6 +101,7 @@ class AnswerValidatorTest extends TestCase
         $answer = AnswerValidator::validate($draft, 'List hires recorded in 2025-03 and their job titles', $sources);
 
         $this->assertSame([
+            'summary' => null,
             'claims' => [
                 ['key' => 'memory:1', 'quote' => 'Hired Lee.'],
                 ['key' => 'memory:2', 'quote' => 'LEE was hired.'],

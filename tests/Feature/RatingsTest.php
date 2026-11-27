@@ -25,7 +25,7 @@ class RatingsTest extends TestCase
         $this->post('/memories', ['wording' => $wording, 'experience_date' => '2024'])->assertRedirect('/');
         $old = route('memories.show', auth()->user()->memories()->where('wording', $wording)->sole());
         $this->post('/input', ['wording' => 'Which did I rate at least 4/5?'])->assertSee('0 confirmed');
-        $this->post('/input', ['wording' => 'Which did I ever rate at least 4/5?'])->assertSee('1 confirmed')->assertSee('John');
+        $this->post('/input', ['wording' => 'Which did I ever rate at least 4/5?'])->assertSee('1 confirmed')->assertSee('John received a rating of 5 out of 5 for work.');
         $this->post('/input', ['wording' => 'Which experiences in 2024-03 had ratings?'])->assertSee('0 confirmed')->assertSee('Uncertain dates');
         $this->post($old.'/person', ['person' => 'John from Acme'])->assertRedirect();
         $this->post('/input', ['wording' => 'What scores did John from Acme ever receive?'])->assertSee('John from Acme')->assertSee('1 confirmed');
