@@ -13,6 +13,9 @@
 <a data-source="{{ $source->key }}" href="{{ $url }}">Open passage</a>
 @if ($type === 'passage')
     @include('document-original-link', ['passageId' => $id])
+@elseif ($source->document_passage_id ?? null)
+    <a href="{{ route('passages.show', $source->document_passage_id) }}#passage-{{ $source->document_passage_id }}">Source document</a>
+    @include('document-original-link', ['passageId' => $source->document_passage_id])
 @endif
 <small>{{ $source->document_location ?? (($source->author ?: 'Unknown author').' · '.($source->date ?: 'Unknown date')) }}</small>
 @if ($type === 'memory' && preg_match('/^I mean\s+(.+?)\.?$/iu', $question, $person))

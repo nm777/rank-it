@@ -19,11 +19,11 @@ class Recall
         $passageSql = $passages->toSql();
         $sourceBindings = [$owner, ...$passages->getBindings()];
         $sources = <<<SQL
-            select 'memory:' || id as key, wording, 'You' as author, created_at::date::text as date, identified_person, experience_date, corrects_passage_id, $memoryVersion as version, null::text as document_location
+            select 'memory:' || id as key, wording, case when document_passage_id is null then 'You' else 'Imported document' end as author, created_at::date::text as date, identified_person, experience_date, corrects_passage_id, $memoryVersion as version, null::text as document_location, document_passage_id
             from memories where user_id = ?
             union all
             select 'passage:' || id, wording,
-                case when quote_text is null then sender else 'Quoted history in message from ' || coalesce(sender,'unknown sender') end, sent_date, null::text, null::text, null::bigint, $passageVersion, document_location
+                case when quote_text is null then sender else 'Quoted history in message from ' || coalesce(sender,'unknown sender') end, sent_date, null::text, null::text, null::bigint, $passageVersion, document_location, null::bigint
             from ($passageSql) p
             SQL;
         $priorSources = $previous ? DB::query()->fromRaw("($sources) as sources", $sourceBindings)
@@ -54,7 +54,7 @@ class Recall
                 [$vector, $tokens] = $this->providers->embed($search);
                 AiOutput::record('Question embedding', ['dimensions' => count($vector), 'input_tokens' => $tokens]);
                 $this->budget->settle($call, $tokens * $this->providers->rate(), $tokens);
-                $semantic = DB::select("select key, wording, author, date, identified_person, experience_date, corrects_passage_id, version, document_location from ($indexed) hits
+                $semantic = DB::select("select key, wording, author, date, identified_person, experience_date, corrects_passage_id, version, document_location, document_passage_id from ($indexed) hits
                     where (embedding <=> ?::vector) < 1 order by embedding <=> ?::vector, key limit 8",
                     [...$bindings, json_encode($vector), json_encode($vector)]);
             } catch (HttpClientException|\UnexpectedValueException $error) {

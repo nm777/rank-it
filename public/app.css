@@ -207,7 +207,7 @@ a { color: var(--accent); }
     stroke-linecap: round;
     stroke-linejoin: round;
 }
-.install-dialog {
+.install-dialog, .document-original-dialog {
     width: min(26rem, calc(100% - 2rem));
     padding: 1.25rem;
     border: 1px solid var(--line);
@@ -215,8 +215,9 @@ a { color: var(--accent); }
     color: var(--ink);
     background: var(--paper);
 }
-.install-dialog h2 { margin-top: 0; }
-.install-dialog::backdrop { background: var(--backdrop); }
+.install-dialog h2, .document-original-dialog h2 { margin-top: 0; }
+.install-dialog::backdrop, .document-original-dialog::backdrop { background: var(--backdrop); }
+.document-original-dialog .actions { align-items: center; }
 .stack { display: grid; gap: .75rem; }
 .stack > button { justify-self: start; }
 input, textarea, button { font: inherit; }

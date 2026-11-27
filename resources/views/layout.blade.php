@@ -20,6 +20,7 @@
     @auth
         <script src="{{ asset('install-app.js') }}?v={{ $appVersion }}" defer></script>
         <script src="{{ asset('import-queue.js') }}?v={{ $appVersion }}" defer></script>
+        <script src="{{ asset('document-original.js') }}?v={{ $appVersion }}" defer></script>
     @endauth
 </head>
 <body class="@yield('page-class')">
@@ -140,6 +141,17 @@
         @endauth
     @endif
 </main>
+@auth
+    <dialog class="document-original-dialog" data-document-original-dialog aria-labelledby="document-original-title">
+        <h2 id="document-original-title">Original file</h2>
+        <p role="status" data-original-status></p>
+        <div class="actions">
+            <button type="button" data-original-share hidden>Share or Save to Files</button>
+            <a data-original-fallback download target="_blank" rel="noopener" hidden>Download in a separate window</a>
+            <form method="dialog"><button type="submit" class="secondary" autofocus>Close</button></form>
+        </div>
+    </dialog>
+@endauth
 @if(session("evidence_changed"))<script>if (window.BroadcastChannel) { const channel = new BroadcastChannel("rank-it-evidence"); channel.postMessage("changed"); channel.close(); }</script>@endif
 </body>
 </html>

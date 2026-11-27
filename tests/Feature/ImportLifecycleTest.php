@@ -221,11 +221,12 @@ class ImportLifecycleTest extends TestCase
         $this->assertDatabaseHas('mail_passages', ['wording' => "Logistics\nMaple delivery schedule\t0"]);
         $document = DB::table('mail_messages')->where('subject', 'document.PDF')->firstOrFail();
         $downloadUrl = route('documents.original', $document->id);
-        $downloadLink = 'href="'.$downloadUrl.'">Download original</a>';
+        $downloadLink = 'data-document-original download target="_blank" rel="noopener" href="'.$downloadUrl.'">Download original</a>';
         $this->post('/search', ['wording' => 'Evergreen PDF fixture'])->assertOk()->assertSee($downloadLink, false);
         $this->get(route('memories.browse', ['q' => 'document.PDF']))->assertOk()->assertSee($downloadLink, false);
         $this->post('/input', ['wording' => 'Where is the Evergreen PDF fixture?', 'intent' => 'ask'])
-            ->assertOk()->assertSee('Search results')->assertSee($downloadLink, false);
+            ->assertOk()->assertSee('Search results')->assertSee($downloadLink, false)
+            ->assertSee('data-document-original-dialog', false)->assertSee('Share or Save to Files');
         $download = $this->get($downloadUrl)->assertDownload('document.PDF');
         $this->assertSame($pdf, $download->baseResponse->getFile()->getContent());
         $this->assertStringContainsString('no-store', $download->headers->get('Cache-Control'));
@@ -262,7 +263,7 @@ class ImportLifecycleTest extends TestCase
         $list->assertSee('href="'.$documentUrl.'">Onboarding process.MD</a>', false);
         $this->get($documentUrl)->assertOk()
             ->assertSee('Review the access checklist.')
-            ->assertSee('Download original')
+            ->assertSee('data-document-original download target="_blank"', false)
             ->assertSee('Delete document')
             ->assertDontSee('Unknown sender')
             ->assertDontSee('<mark', false);
@@ -383,7 +384,8 @@ class ImportLifecycleTest extends TestCase
 
     public function test_spreadsheet_table_keeps_blank_cell_positions_and_formatted_date_headers(): void
     {
-        $this->actingAs(User::factory()->create());
+        $owner = User::factory()->create();
+        $this->actingAs($owner);
         config(['inference.cap' => 0, 'inference.rate' => 1]);
         $workbook = new Spreadsheet;
         $sheet = $workbook->getActiveSheet()->setTitle('Dispatch');
@@ -396,11 +398,12 @@ class ImportLifecycleTest extends TestCase
         $path = tempnam(sys_get_temp_dir(), 'xlsx');
         try {
             IOFactory::createWriter($workbook, IOFactory::WRITER_XLSX)->save($path);
-            $this->upload(['dispatch.xlsx' => file_get_contents($path)]);
+            $original = file_get_contents($path);
         } finally {
             unlink($path);
             $workbook->disconnectWorksheets();
         }
+        $first = $this->upload(['dispatch.xlsx' => $original]);
         $this->drain();
 
         $this->assertDatabaseHas('mail_passages', [
@@ -408,6 +411,42 @@ class ImportLifecycleTest extends TestCase
             'document_location' => 'Sheet Dispatch',
         ]);
         $this->assertSame(1, DB::table('mail_passages')->whereNotNull('document_location')->count());
+        $memory = $owner->memories()->sole();
+        $this->assertSame('2026-11-10', $memory->experience_date);
+        $this->assertSame('Jordan Lee was scheduled at North yard on 2026-11-10.', $memory->wording);
+        $sourceUrl = route('passages.show', $memory->document_passage_id);
+        $this->get(route('memories.show', $memory))->assertOk()->assertSee($sourceUrl)->assertSee('Generated from');
+        $this->post('/input', ['wording' => 'Where was Jordan Lee scheduled on 2026-11-10?', 'intent' => 'ask'])
+            ->assertOk()->assertSee($memory->wording)->assertSee($sourceUrl)->assertSee('Download original');
+        $this->get($sourceUrl)->assertOk()->assertSee('1 generated memory');
+
+        // Simulate an older indexed document and backfill its generated memory.
+        $memory->delete();
+        DB::table('mail_passages')->where('id', $memory->document_passage_id)->update(['memory_generation_checked' => false]);
+        $this->artisan('documents:index-tables', ['owner' => $owner->id])->assertSuccessful();
+        $this->drain();
+        $memory = $owner->memories()->sole();
+        $second = $this->upload(['dispatch.xlsx' => $original]);
+        $this->drain();
+        $this->assertSame($memory->id, $owner->memories()->sole()->id);
+        $this->post(route('passages.correct', $memory->document_passage_id), ['wording' => 'My correction'])->assertRedirect();
+        $this->get(route('imports.show', $first))->assertOk()->assertSee('0 generated memories');
+        $this->delete(route('imports.remove', $first))->assertRedirect();
+        $this->assertNotNull($memory->fresh());
+        $this->get(route('imports.show', $second))->assertOk()->assertSee('1 generated memory');
+        $this->delete(route('imports.remove', $second))->assertRedirect();
+        $this->drain();
+        $this->assertNull($memory->fresh());
+        $this->assertNull($owner->memories()->sole()->corrects_passage_id);
+        Storage::disk('import-staging')->assertMissing(["$owner->id/$first", "$owner->id/$second"]);
+
+        $third = $this->upload(['dispatch.xlsx' => $original]);
+        $this->drain();
+        $document = DB::table('mail_messages')->sole();
+        $this->delete(route('messages.delete', $document->id))->assertRedirect();
+        $this->drain();
+        $this->assertSame('My correction', $owner->memories()->sole()->wording);
+        Storage::disk('import-staging')->assertMissing("$owner->id/$third");
     }
 
     private function workbook(string $format, string $label): string

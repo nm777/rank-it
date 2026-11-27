@@ -24,6 +24,10 @@
 @foreach ($files as $file)<p><a href="{{ route('imports.show', $file->id) }}">{{ $file->filename }}</a> · {{ $file->status }}</p>@endforeach
 @endif
 @foreach ($qualified as $id)<p><a href="{{ route('passages.show', $id) }}">Open newly qualifying passage {{ $id }}</a></p>@endforeach
-<form method="post" action="{{ route('imports.remove', $import->batch_id) }}">@csrf @method('DELETE')<button>Remove this batch</button></form>
+<details>
+    <summary>Remove this batch</summary>
+    <p>This removes {{ $files->count() }} {{ Str::plural('upload', $files->count()) }}, {{ $removal['passages'] }} searchable {{ Str::plural('passage', $removal['passages']) }}, and {{ $removal['generatedMemories'] }} generated {{ Str::plural('memory', $removal['generatedMemories']) }}. Sources shared with another batch are kept.</p>
+    <form method="post" action="{{ route('imports.remove', $import->batch_id) }}">@csrf @method('DELETE')<button>Confirm batch removal</button></form>
+</details>
 <a href="{{ route('imports.index') }}">Mailbox imports</a>
 @endsection

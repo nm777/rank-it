@@ -151,12 +151,16 @@ class MemoryController extends Controller
                 $keys = array_keys($response['results']);
             }
             $versions = [];
+            $documentKeys = $keys;
             foreach ($keys as $key) {
                 $versions[$key] = $response['results'][$key]->version;
+                if ($passageId = $response['results'][$key]->document_passage_id ?? null) {
+                    $documentKeys[] = 'passage:'.$passageId;
+                }
             }
             $turn = $conversation->remember($text, $versions);
 
-            $documentOriginals = DocumentOriginals::forSources($request->user()->id, $keys);
+            $documentOriginals = DocumentOriginals::forSources($request->user()->id, array_unique($documentKeys));
 
             return view('recall', $response + compact('turn', 'documentOriginals'))->with(['experienceDate' => $data['experience_date'], 'replayWording' => $data['wording']]);
         }

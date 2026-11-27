@@ -24,8 +24,11 @@ Artisan::command('documents:index-tables {owner : Account ID}', function (string
     $queued = 0;
     DocumentOriginals::files((int) $owner)
         ->select('files.id', 'files.filename')
-        ->whereNotExists(fn ($passages) => $passages->selectRaw('1')->from('mail_passages')
-            ->whereColumn('message_id', 'entries.message_id')->whereNotNull('document_location'))
+        ->whereNotExists(fn ($passages) => $passages->selectRaw('1')->from('mail_passages as extracted')
+            ->whereColumn('extracted.message_id', 'entries.message_id')->whereNotNull('extracted.document_location')
+            ->whereNotExists(fn ($unchecked) => $unchecked->selectRaw('1')->from('mail_passages')
+                ->whereColumn('message_id', 'entries.message_id')->whereNotNull('document_location')
+                ->where('memory_generation_checked', false)))
         ->eachById(function ($file) use ($owner, &$queued): void {
             if (ImportFile::supportsTables($file->filename) && DocumentOriginals::available((int) $owner, $file)) {
                 IndexDocumentTables::dispatch((int) $owner, $file->id);

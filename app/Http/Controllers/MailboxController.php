@@ -137,7 +137,9 @@ class MailboxController extends Controller
         $qualified = DB::table('passage_rechecks')->join('inference_work', 'work_id', '=', 'inference_work.id')
             ->where('batch_id', $import->batch_id)->where('qualified', true)->pluck('passage_id');
 
-        return view('import', compact('import', 'attachments', 'pending', 'files', 'qualified'));
+        $removal = $this->removalCounts($request->user()->id, $this->batchOnlyMessages($request->user()->id, $import->batch_id));
+
+        return view('import', compact('import', 'attachments', 'pending', 'files', 'qualified', 'removal'));
     }
 
     public function passage(Request $request, int $passage)
@@ -155,7 +157,11 @@ class MailboxController extends Controller
 
         $skipped = DB::table('inference_work')->where('passage_id', $selected->id)->where('stage', 'skipped')->exists();
 
-        return view('passage', compact('message', 'selected', 'passages', 'skipped', 'isDocument', 'isSpreadsheet', 'hasOriginal'));
+        $removal = $isDocument
+            ? $this->removalCounts($owner, DB::table('mail_messages')->where('id', $message->id)->where('user_id', $owner))
+            : null;
+
+        return view('passage', compact('message', 'selected', 'passages', 'skipped', 'isDocument', 'isSpreadsheet', 'hasOriginal', 'removal'));
     }
 
     public function downloadOriginal(Request $request, int $message): BinaryFileResponse
@@ -233,9 +239,9 @@ class MailboxController extends Controller
             $files = DB::table('mailbox_imports')->where('user_id', $owner)->where('batch_id', $batch);
             abort_unless($files->exists(), 404);
             $ids = $files->pluck('id');
+            $this->batchOnlyMessages($owner, $batch)->delete();
             DB::table('passage_rechecks')->where('batch_id', $batch)->delete();
             $files->delete();
-            DB::table('mail_messages')->where('user_id', $owner)->whereNotIn('id', DB::table('mailbox_entries')->select('message_id'))->delete();
 
             foreach ($ids as $id) {
                 DeleteStagedImport::dispatch($owner, $id);
@@ -243,5 +249,28 @@ class MailboxController extends Controller
         });
 
         return redirect()->route('imports.index')->with('evidence_changed', true);
+    }
+
+    private function batchOnlyMessages(int $owner, string $batch): Builder
+    {
+        $memberships = DB::table('mailbox_entries as entries')
+            ->join('mailbox_imports as files', 'files.id', '=', 'entries.import_id')
+            ->whereColumn('entries.message_id', 'mail_messages.id')->where('files.user_id', $owner)->selectRaw('1');
+
+        return DB::table('mail_messages')->where('user_id', $owner)
+            ->whereExists((clone $memberships)->where('files.batch_id', $batch))
+            ->whereNotExists($memberships->where('files.batch_id', '!=', $batch));
+    }
+
+    /** @return array{passages: int, generatedMemories: int} */
+    private function removalCounts(int $owner, Builder $messages): array
+    {
+        $passages = DB::table('mail_passages')->whereIn('message_id', $messages->select('id'));
+
+        return [
+            'passages' => (clone $passages)->count(),
+            'generatedMemories' => DB::table('memories')->where('user_id', $owner)
+                ->whereIn('document_passage_id', $passages->select('id'))->count(),
+        ];
     }
 }

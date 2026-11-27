@@ -1,3 +1,4 @@
-@isset($documentOriginals[$passageId])
-    <a href="{{ route('documents.original', $documentOriginals[$passageId]) }}">Download original</a>
+@php($originalId = $originalMessageId ?? $documentOriginals[$passageId] ?? null)
+@isset($originalId)
+    <a data-document-original download target="_blank" rel="noopener" href="{{ route('documents.original', $originalId) }}">Download original</a>
 @endisset

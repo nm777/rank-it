@@ -53,5 +53,8 @@
 <label>Person <input name="person" required maxlength="255" value="{{ is_string(request('person')) ? request('person') : $memory->identified_person }}"></label>
 <button>Save identity link</button></form></details>
 @if ($memory->corrects_passage_id)<p>Correction to <a href="{{ route('passages.show', $memory->corrects_passage_id) }}">original passage</a></p>@endif
+@if ($memory->document_passage_id)
+    <p>Generated from <a href="{{ route('passages.show', $memory->document_passage_id) }}#passage-{{ $memory->document_passage_id }}">source document</a>.</p>
+@endif
 <form method="post" action="{{ route('memories.delete', $memory) }}">@csrf @method('DELETE')<button>Delete memory</button></form>
 @endsection
