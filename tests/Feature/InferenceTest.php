@@ -7,6 +7,7 @@ use App\Jobs\ImportMailbox;
 use App\Jobs\IndexPassage;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -205,6 +206,48 @@ class InferenceTest extends TestCase
             'provider unavailable' => [503],
             'malformed success response' => [200],
         ];
+    }
+
+    #[DataProvider('embeddingConnectionOutcomes')]
+    public function test_embedding_connection_failure_retries_once_without_releasing_the_reserved_cost(bool $recovers): void
+    {
+        $attempts = 0;
+        Http::fake(['embedding.test/*' => function () use (&$attempts, $recovers) {
+            if (++$attempts === 1 || ! $recovers) {
+                throw new ConnectionException('Connection interrupted');
+            }
+
+            return Http::response(['data' => [['embedding' => [1, 0]]], 'usage' => ['prompt_tokens' => 3]]);
+        }]);
+        $this->freezeTime();
+        $this->actingAs(User::factory()->create())->post('/memories', ['wording' => 'Synthetic capture'])
+            ->assertRedirect('/');
+        $work = DB::table('inference_work')->sole();
+
+        $this->artisan('queue:work database --stop-when-empty --sleep=0')->assertSuccessful();
+        $firstCall = DB::table('inference_calls')->sole();
+        $this->assertSame(1, $attempts);
+        $this->assertDatabaseHas('inference_work', ['id' => $work->id, 'call_id' => $firstCall->id]);
+        $this->assertSame(now()->timestamp + 30, DB::table('jobs')->sole()->available_at);
+        $this->runWork($work->id);
+        $this->assertSame(1, $attempts);
+
+        $this->travel(31)->seconds();
+        $this->artisan('queue:work database --stop-when-empty --sleep=0')->assertSuccessful();
+
+        $this->assertSame(2, $attempts);
+        $this->assertDatabaseHas('inference_work', ['id' => $work->id, 'stage' => $recovers ? 'indexed' : 'embed']);
+        $retryCall = DB::table('inference_calls')->where('id', '!=', $firstCall->id)->sole();
+        $this->assertDatabaseHas('inference_work', ['id' => $work->id, 'call_id' => $recovers ? null : $retryCall->id]);
+        $this->assertDatabaseHas('inference_calls', ['id' => $firstCall->id, 'actual' => null]);
+        $this->assertDatabaseHas('inference_budget', ['committed' => $recovers ? 1006 : 2000]);
+        $this->assertDatabaseEmpty('jobs');
+        $this->assertDatabaseEmpty('failed_jobs');
+    }
+
+    public static function embeddingConnectionOutcomes(): array
+    {
+        return ['retry succeeds' => [true], 'retry also fails' => [false]];
     }
 
     public function test_unexpected_indexing_exception_fails_the_queued_job_and_keeps_its_reservation(): void

@@ -18,7 +18,7 @@ class IndexPassage implements ShouldQueue
 {
     use Queueable;
 
-    public function __construct(public int $workId)
+    public function __construct(public int $workId, public ?int $retryCallId = null)
     {
         $this->onConnection('database');
     }
@@ -31,10 +31,11 @@ class IndexPassage implements ShouldQueue
     public function handle(Providers $providers, Budget $budget): void
     {
         $query = DB::table('inference_work')->where('id', $this->workId);
-        $work = DB::transaction(function () use ($query, $providers, $budget) {
+        $retryCallId = $this->retryCallId ?? null;
+        $work = DB::transaction(function () use ($query, $providers, $budget, $retryCallId) {
             $providers->select(DB::table('embedding_index_state')->sharedLock()->first()->profile);
             $work = $query->lockForUpdate()->first();
-            if (! $work || $work->call_id) {
+            if (! $work || ($work->call_id === null ? null : (int) $work->call_id) !== $retryCallId) {
                 return null;
             }
             $work->previousStage = $work->stage;
@@ -80,7 +81,14 @@ class IndexPassage implements ShouldQueue
                 : $providers->embed($work->wording);
         } catch (ConnectionException|RequestException|ProviderResponseException $error) {
             // TypeSafe documents rejected requests as unbilled. Other outcomes may have been charged.
-            if ($work->stage === 'screen' && $error instanceof RequestException && $error->response->clientError()) {
+            if ($work->stage === 'embed' && $error instanceof ConnectionException && $retryCallId === null) {
+                // Keep the original reservation until its actual cost can be reconciled.
+                self::dispatch($this->workId, (int) $work->call_id)->delay(now()->addSeconds(30));
+                Log::info('Retrying passage embedding after a connection interruption.', [
+                    'work_id' => $work->id,
+                    'call_id' => $work->call_id,
+                ]);
+            } elseif ($work->stage === 'screen' && $error instanceof RequestException && $error->response->clientError()) {
                 DB::transaction(function () use ($budget, $query, $work) {
                     $budget->settle($work->call_id, 0, 0);
                     $query->where('call_id', $work->call_id)->update(['call_id' => null]);
